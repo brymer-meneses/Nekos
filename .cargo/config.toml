@@ -1,0 +1,7 @@
+[target.riscv64gc-unknown-none-elf]
+rustflags = [
+  "-C", "link-arg=-T./nekos-kernel/linker.ld"
+]
+
+[build]
+target = "riscv64gc-unknown-none-elf"
