@@ -6,7 +6,7 @@ QEMU_FLAGS := -machine virt \
 
 QEMU := qemu-system-riscv64
 
-build: target/riscv64gc-unknown-none-elf/debug/nekos-kernel
+build:
 	cargo build --target riscv64gc-unknown-none-elf
 
 run: build
