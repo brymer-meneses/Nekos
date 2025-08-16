@@ -5,8 +5,7 @@ mod sbi;
 
 #[no_mangle]
 pub extern "C" fn kernel_main() -> ! {
-    println!("Hello world!");
-
+    sbi::load_screen();
     loop {}
 }
 

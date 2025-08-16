@@ -1,7 +1,14 @@
 [target.riscv64gc-unknown-none-elf]
-rustflags = [
-  "-C", "link-arg=-T./nekos-kernel/linker.ld"
-]
+runner = """ qemu-system-riscv64
+  -machine virt
+  -kernel target/riscv64gc-unknown-none-elf/debug/nekos-kernel
+  -nographic
+  -serial mon:stdio
+  --no-reboot
+"""
 
 [build]
 target = "riscv64gc-unknown-none-elf"
+rustflags = [
+  "-C", "link-arg=-T./nekos-kernel/linker.ld"
+]
