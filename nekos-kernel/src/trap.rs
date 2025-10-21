@@ -2,44 +2,15 @@ use core::arch;
 
 use crate::println;
 
-#[repr(C, packed)]
-struct TrapFrame {
-    pub ra: u64,
-    pub gp: u64,
-    pub tp: u64,
-    pub t0: u64,
-    pub t1: u64,
-    pub t2: u64,
-    pub t3: u64,
-    pub t4: u64,
-    pub t5: u64,
-    pub t6: u64,
-    pub a0: u64,
-    pub a1: u64,
-    pub a2: u64,
-    pub a3: u64,
-    pub a4: u64,
-    pub a5: u64,
-    pub a6: u64,
-    pub a7: u64,
-    pub s0: u64,
-    pub s1: u64,
-    pub s2: u64,
-    pub s3: u64,
-    pub s4: u64,
-    pub s5: u64,
-    pub s6: u64,
-    pub s7: u64,
-    pub s8: u64,
-    pub s9: u64,
-    pub s10: u64,
-    pub s11: u64,
-    pub sp: u64,
+pub fn setup() {
+    unsafe {
+        core::arch::asm!("csrw stvec, {}", in(reg) handler as u64);
+    }
 }
 
 #[unsafe(naked)]
 #[no_mangle]
-pub unsafe extern "C" fn handler() {
+unsafe extern "C" fn handler() {
     arch::naked_asm!(
         "csrw sscratch, sp",
         "addi sp, sp, -8 * 31",
@@ -118,6 +89,41 @@ pub unsafe extern "C" fn handler() {
 
         handle_trap = sym handle_trap,
     );
+}
+
+#[repr(C, packed)]
+struct TrapFrame {
+    pub ra: u64,
+    pub gp: u64,
+    pub tp: u64,
+    pub t0: u64,
+    pub t1: u64,
+    pub t2: u64,
+    pub t3: u64,
+    pub t4: u64,
+    pub t5: u64,
+    pub t6: u64,
+    pub a0: u64,
+    pub a1: u64,
+    pub a2: u64,
+    pub a3: u64,
+    pub a4: u64,
+    pub a5: u64,
+    pub a6: u64,
+    pub a7: u64,
+    pub s0: u64,
+    pub s1: u64,
+    pub s2: u64,
+    pub s3: u64,
+    pub s4: u64,
+    pub s5: u64,
+    pub s6: u64,
+    pub s7: u64,
+    pub s8: u64,
+    pub s9: u64,
+    pub s10: u64,
+    pub s11: u64,
+    pub sp: u64,
 }
 
 unsafe extern "C" fn handle_trap(_frame: &mut TrapFrame) {
