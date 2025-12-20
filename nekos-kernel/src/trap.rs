@@ -1,6 +1,7 @@
 use core::arch;
 
 use crate::println;
+use nekos_arch::riscv64;
 
 pub fn setup() {
     unsafe {
@@ -9,9 +10,9 @@ pub fn setup() {
 }
 
 #[unsafe(naked)]
-#[no_mangle]
-unsafe extern "C" fn handler() {
+extern "C" fn handler() {
     arch::naked_asm!(
+        // save `sp` to `sscratch` because it will be passed to the trap frame.
         "csrw sscratch, sp",
         "addi sp, sp, -8 * 31",
 
@@ -47,7 +48,6 @@ unsafe extern "C" fn handler() {
         "sd s11, 8 * 29(sp)",
 
         "csrr a0, sscratch",
-
         "sd a0, 8 * 30(sp)",
         "mv a0, sp",
 
@@ -91,60 +91,23 @@ unsafe extern "C" fn handler() {
     );
 }
 
-#[repr(C, packed)]
-struct TrapFrame {
-    pub ra: u64,
-    pub gp: u64,
-    pub tp: u64,
-    pub t0: u64,
-    pub t1: u64,
-    pub t2: u64,
-    pub t3: u64,
-    pub t4: u64,
-    pub t5: u64,
-    pub t6: u64,
-    pub a0: u64,
-    pub a1: u64,
-    pub a2: u64,
-    pub a3: u64,
-    pub a4: u64,
-    pub a5: u64,
-    pub a6: u64,
-    pub a7: u64,
-    pub s0: u64,
-    pub s1: u64,
-    pub s2: u64,
-    pub s3: u64,
-    pub s4: u64,
-    pub s5: u64,
-    pub s6: u64,
-    pub s7: u64,
-    pub s8: u64,
-    pub s9: u64,
-    pub s10: u64,
-    pub s11: u64,
-    pub sp: u64,
+unsafe extern "C" fn handle_trap(frame: &mut riscv64::TrapFrame) {
+    let scause = unsafe { riscv64::Scause::read() };
+
+    if scause.is_interrupt() {
+        handle_interrupt(frame);
+    } else {
+        handle_exception(frame);
+    }
 }
 
-unsafe extern "C" fn handle_trap(_frame: &mut TrapFrame) {
-    let scause: u64;
-    let stval: u64;
-    let sepc: u64;
+fn handle_interrupt(frame: &mut riscv64::TrapFrame) {
+    let scause = unsafe { riscv64::Scause::read() };
 
-    arch::asm!(
-        "csrr {scause}, scause",
-        "csrr {stval}, stval",
-        "csrr {sepc}, sepc",
-
-        scause = out(reg) scause,
-        stval = out(reg) stval,
-        sepc = out(reg) sepc,
-    );
-
-    println!(
-        "scause: {:#x}, stval: {:#x}, sepc: {:#x}",
-        scause, stval, sepc
-    );
-
-    loop {}
+    match scause.interrupt_code() {
+        _ => panic!("Unhandled interrupt"),
+    }
+}
+fn handle_exception(_frame: &mut riscv64::TrapFrame) {
+    println!("here")
 }

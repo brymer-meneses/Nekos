@@ -4,13 +4,15 @@
 mod sbi;
 mod trap;
 
-use core::{arch, ptr};
-
 #[no_mangle]
 pub extern "C" fn kernel_main() -> ! {
     println!("Hello world!");
 
     trap::setup();
+
+    unsafe {
+        core::arch::asm!("unimp");
+    }
 
     loop {}
 }
@@ -30,16 +32,16 @@ extern "C" {
 
 #[no_mangle]
 unsafe extern "C" fn boot() -> ! {
-    arch::asm!(
+    core::arch::asm!(
         "la sp, {stack_top}",
         stack_top = sym __stack_top,
     );
 
     // Zero the BSS section.
-    let bss_start = ptr::addr_of!(__bss_start);
-    let bss_end = ptr::addr_of!(__bss_end);
+    let bss_start = core::ptr::addr_of!(__bss_start);
+    let bss_end = core::ptr::addr_of!(__bss_end);
     let bss_size = (bss_start as u64 - bss_end as u64) as usize;
-    ptr::write_bytes(ptr::addr_of_mut!(__bss_start), 0, bss_size);
+    core::ptr::write_bytes(core::ptr::addr_of_mut!(__bss_start), 0, bss_size);
 
     kernel_main();
 }

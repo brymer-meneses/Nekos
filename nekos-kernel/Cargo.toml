@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 bitflags = "2.10.0"
+nekos-arch = { path = "../nekos-arch"}
 
 [profile.dev]
 panic = "abort"

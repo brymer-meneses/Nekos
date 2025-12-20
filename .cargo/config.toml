@@ -10,5 +10,5 @@ runner = """ qemu-system-riscv64
 [build]
 target = "riscv64gc-unknown-none-elf"
 rustflags = [
-  "-C", "link-arg=-T./nekos-kernel/linker.ld"
+  "-C", "link-arg=-T./nekos-kernel/riscv64.ld"
 ]
