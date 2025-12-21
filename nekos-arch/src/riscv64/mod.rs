@@ -54,6 +54,9 @@ impl_csr!(Sepc, "sepc");
 pub struct Sstatus(u64);
 impl_csr!(Sstatus, "sstatus");
 
+pub struct Stvec(pub u64);
+impl_csr!(Stvec, "stvec");
+
 impl Scause {
     pub const fn new(value: u64) -> Scause {
         Scause(value)

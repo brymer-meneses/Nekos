@@ -1,12 +1,12 @@
 use core::arch;
 
 use crate::println;
-use nekos_arch::riscv64;
+use nekos_arch::riscv64::{self, CsrWrite};
 
 pub fn setup() {
-    unsafe {
-        core::arch::asm!("csrw stvec, {}", in(reg) handler as u64);
-    }
+    let stvec = riscv64::Stvec(handler as u64);
+
+    unsafe { riscv64::Stvec::write(stvec) }
 }
 
 #[unsafe(naked)]

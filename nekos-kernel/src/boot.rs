@@ -31,17 +31,22 @@ extern "C" {
 }
 
 #[no_mangle]
-unsafe extern "C" fn boot() -> ! {
-    core::arch::asm!(
-        "la sp, {stack_top}",
-        stack_top = sym __stack_top,
-    );
+extern "C" fn boot() -> ! {
+    unsafe {
+        core::arch::asm!(
+            "la sp, {stack_top}",
+            stack_top = sym __stack_top,
+        );
+    }
 
     // Zero the BSS section.
     let bss_start = core::ptr::addr_of!(__bss_start);
     let bss_end = core::ptr::addr_of!(__bss_end);
     let bss_size = (bss_start as u64 - bss_end as u64) as usize;
-    core::ptr::write_bytes(core::ptr::addr_of_mut!(__bss_start), 0, bss_size);
+
+    unsafe {
+        core::ptr::write_bytes(core::ptr::addr_of_mut!(__bss_start), 0, bss_size);
+    }
 
     kernel_main();
 }
