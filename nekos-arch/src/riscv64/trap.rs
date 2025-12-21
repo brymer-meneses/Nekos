@@ -12,8 +12,6 @@ pub enum InterruptCode {
     MachineExternalInterrupt,
     SupervisorGuestExternalInterrupt,
     LocalCounterOverflowInterrupt,
-
-    Unknown,
 }
 
 pub enum ExceptionCode {
@@ -45,8 +43,6 @@ pub enum ExceptionCode {
     SoftwareCheck,
     HardwareError,
     VirtualInstruction,
-
-    Unknown,
 }
 
 #[repr(C, packed)]

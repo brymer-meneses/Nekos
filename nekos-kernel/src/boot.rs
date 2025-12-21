@@ -5,21 +5,10 @@ mod sbi;
 mod trap;
 
 #[no_mangle]
-pub extern "C" fn kernel_main() -> ! {
-    println!("Hello world!");
-
+pub extern "C" fn kernel_main(_hart_id: u64, device_tree_addr: u64) -> ! {
     trap::setup();
 
-    unsafe {
-        core::arch::asm!("unimp");
-    }
-
-    loop {}
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    println!("Panic at the kernel!");
+    println!("Device tree! 0x{:08x}", device_tree_addr);
     loop {}
 }
 
@@ -30,23 +19,35 @@ extern "C" {
     static __bss_end: u8;
 }
 
-#[no_mangle]
-extern "C" fn boot() -> ! {
-    unsafe {
-        core::arch::asm!(
-            "la sp, {stack_top}",
-            stack_top = sym __stack_top,
-        );
-    }
+fn boot(hart_id: u64, device_tree_addr: u64) -> ! {
+    use core::ptr;
 
     // Zero the BSS section.
-    let bss_start = core::ptr::addr_of!(__bss_start);
-    let bss_end = core::ptr::addr_of!(__bss_end);
-    let bss_size = (bss_start as u64 - bss_end as u64) as usize;
+    let bss_start = ptr::addr_of!(__bss_start);
+    let bss_end = ptr::addr_of!(__bss_end);
+    let bss_size = (bss_end as usize) - (bss_start as usize);
 
     unsafe {
-        core::ptr::write_bytes(core::ptr::addr_of_mut!(__bss_start), 0, bss_size);
+        ptr::write_bytes(ptr::addr_of_mut!(__bss_start), 0, bss_size);
     }
 
-    kernel_main();
+    kernel_main(hart_id, device_tree_addr);
+}
+
+#[no_mangle]
+#[unsafe(naked)]
+#[link_section = ".text.boot"]
+extern "C" fn early_boot() -> ! {
+    core::arch::naked_asm!(
+        "la sp, {stack_top}",
+        "call {boot}",
+        stack_top = sym __stack_top,
+        boot = sym boot,
+    );
+}
+
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    println!("Panic at the kernel!");
+    loop {}
 }

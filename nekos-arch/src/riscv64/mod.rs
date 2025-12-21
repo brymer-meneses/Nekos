@@ -62,7 +62,7 @@ impl Scause {
         Scause(value)
     }
 
-    pub const fn interrupt_code(&self) -> InterruptCode {
+    pub fn interrupt_code(&self) -> InterruptCode {
         let code = self.code();
         match code {
             1 => InterruptCode::SupervisorSoftwareInterrupt,
@@ -78,11 +78,11 @@ impl Scause {
             11 => InterruptCode::MachineExternalInterrupt,
             12 => InterruptCode::SupervisorGuestExternalInterrupt,
 
-            _ => InterruptCode::Unknown,
+            _ => panic!("Invalid interrupt code {}", code),
         }
     }
 
-    pub const fn exception_code(&self) -> ExceptionCode {
+    pub fn exception_code(&self) -> ExceptionCode {
         let code = self.code();
         match code {
             0 => ExceptionCode::InstructionAddressMisaligned,
@@ -107,7 +107,8 @@ impl Scause {
             21 => ExceptionCode::LoadGuestPageFault,
             22 => ExceptionCode::VirtualInstruction,
             23 => ExceptionCode::StoreAmoGuestPageFault,
-            _ => ExceptionCode::Unknown,
+
+            _ => panic!("Invalid exception code {}", code),
         }
     }
 

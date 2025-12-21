@@ -1,12 +1,33 @@
 use core::arch;
 
 use crate::println;
-use nekos_arch::riscv64::{self, CsrWrite};
+use nekos_arch::riscv64::{self, CsrRead, CsrWrite};
 
 pub fn setup() {
     let stvec = riscv64::Stvec(handler as u64);
 
     unsafe { riscv64::Stvec::write(stvec) }
+}
+
+extern "C" fn handle_trap(frame: &mut riscv64::TrapFrame) {
+    let scause = riscv64::Scause::read();
+
+    if scause.is_interrupt() {
+        handle_interrupt(frame);
+    } else {
+        handle_exception(frame);
+    }
+}
+
+fn handle_interrupt(_frame: &mut riscv64::TrapFrame) {
+    let scause = riscv64::Scause::read();
+
+    match scause.interrupt_code() {
+        _ => panic!("Unhandled interrupt"),
+    }
+}
+fn handle_exception(_frame: &mut riscv64::TrapFrame) {
+    println!("here")
 }
 
 #[unsafe(naked)]
@@ -89,27 +110,4 @@ extern "C" fn handler() {
 
         handle_trap = sym handle_trap,
     );
-}
-
-use nekos_arch::riscv64::CsrRead;
-
-extern "C" fn handle_trap(frame: &mut riscv64::TrapFrame) {
-    let scause = riscv64::Scause::read();
-
-    if scause.is_interrupt() {
-        handle_interrupt(frame);
-    } else {
-        handle_exception(frame);
-    }
-}
-
-fn handle_interrupt(frame: &mut riscv64::TrapFrame) {
-    let scause = riscv64::Scause::read();
-
-    match scause.interrupt_code() {
-        _ => panic!("Unhandled interrupt"),
-    }
-}
-fn handle_exception(_frame: &mut riscv64::TrapFrame) {
-    println!("here")
 }
