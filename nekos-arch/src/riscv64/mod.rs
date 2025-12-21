@@ -2,20 +2,60 @@ mod trap;
 
 pub use trap::*;
 
+pub trait CsrWrite {
+    unsafe fn write(value: Self);
+}
+pub trait CsrRead {
+    fn read() -> Self;
+}
+
+macro_rules! impl_csr_read {
+    ($name:ident, $register:literal) => {
+        impl CsrRead for $name {
+            fn read() -> Self {
+                let mut value;
+                unsafe {
+                    core::arch::asm!(concat!("csrr {}, ", $register), out(reg) value);
+                }
+                $name(value)
+            }
+        }
+    };
+}
+
+macro_rules! impl_csr_write {
+    ($name:ident, $register:literal) => {
+        impl CsrWrite for $name {
+            unsafe fn write(value: Self) {
+                unsafe {
+                    core::arch::asm!(concat!("csrw ", $register, ", {}"), in(reg) value.0);
+                }
+            }
+        }
+    };
+}
+
+macro_rules! impl_csr {
+    ($name:ident, $register:literal) => {
+        impl_csr_write!($name, $register);
+        impl_csr_read!($name, $register);
+    };
+}
+
 pub struct Scause(u64);
+impl_csr!(Scause, "scause");
+
+pub struct Stval(u64);
+impl_csr!(Stval, "stval");
+
+pub struct Sepc(u64);
+impl_csr!(Sepc, "sepc");
+
+pub struct Sstatus(u64);
+impl_csr!(Sstatus, "sstatus");
 
 impl Scause {
     pub const fn new(value: u64) -> Scause {
-        Scause(value)
-    }
-
-    pub unsafe fn read() -> Scause {
-        let mut value;
-
-        unsafe {
-            core::arch::asm!("csrr {}, scause", out(reg) value);
-        }
-
         Scause(value)
     }
 

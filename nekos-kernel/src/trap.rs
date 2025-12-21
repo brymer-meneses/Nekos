@@ -91,8 +91,10 @@ extern "C" fn handler() {
     );
 }
 
-unsafe extern "C" fn handle_trap(frame: &mut riscv64::TrapFrame) {
-    let scause = unsafe { riscv64::Scause::read() };
+use nekos_arch::riscv64::CsrRead;
+
+extern "C" fn handle_trap(frame: &mut riscv64::TrapFrame) {
+    let scause = riscv64::Scause::read();
 
     if scause.is_interrupt() {
         handle_interrupt(frame);
@@ -102,7 +104,7 @@ unsafe extern "C" fn handle_trap(frame: &mut riscv64::TrapFrame) {
 }
 
 fn handle_interrupt(frame: &mut riscv64::TrapFrame) {
-    let scause = unsafe { riscv64::Scause::read() };
+    let scause = riscv64::Scause::read();
 
     match scause.interrupt_code() {
         _ => panic!("Unhandled interrupt"),
