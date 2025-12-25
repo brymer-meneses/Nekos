@@ -15,6 +15,7 @@ macro_rules! info {
 
 macro_rules! debug {
     ($($arg:tt)*) => {
+        #[cfg(not(debug_assertions))]
         {
             use nekos_arch::print;
             use colorz::Colorize;
