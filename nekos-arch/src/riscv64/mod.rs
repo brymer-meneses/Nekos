@@ -1,5 +1,3 @@
-#![allow(non_camel_case_types)]
-
 mod sbi;
 mod trap;
 
@@ -16,6 +14,7 @@ pub trait CsrRead {
 macro_rules! impl_csr {
     ($name:ident) => {
         #[derive(Clone, Copy)]
+        #[allow(non_camel_case_types)]
         pub struct $name(u64);
 
         impl CsrWrite for $name {
