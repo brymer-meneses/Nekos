@@ -1,3 +1,5 @@
+#![allow(non_camel_case_types)]
+
 mod trap;
 
 pub use trap::*;
@@ -42,24 +44,24 @@ macro_rules! impl_csr {
     };
 }
 
-pub struct Scause(u64);
-impl_csr!(Scause, "scause");
+pub struct scause(u64);
+impl_csr!(scause, "scause");
 
-pub struct Stval(u64);
-impl_csr!(Stval, "stval");
+pub struct stval(u64);
+impl_csr!(stval, "stval");
 
-pub struct Sepc(u64);
-impl_csr!(Sepc, "sepc");
+pub struct sepc(u64);
+impl_csr!(sepc, "sepc");
 
-pub struct Sstatus(u64);
-impl_csr!(Sstatus, "sstatus");
+pub struct sstatus(u64);
+impl_csr!(sstatus, "sstatus");
 
-pub struct Stvec(pub u64);
-impl_csr!(Stvec, "stvec");
+pub struct stvec(pub u64);
+impl_csr!(stvec, "stvec");
 
-impl Scause {
-    pub const fn new(value: u64) -> Scause {
-        Scause(value)
+impl scause {
+    pub const fn new(value: u64) -> scause {
+        scause(value)
     }
 
     pub fn interrupt_code(&self) -> InterruptCode {

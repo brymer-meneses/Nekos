@@ -31,7 +31,7 @@ run: iso
     -drive if=pflash,unit=0,format=raw,file=target/edk2-ovmf/ovmf-code-riscv64.fd,readonly=on \
     -cdrom target/nekos.iso \
     -serial stdio \
-    -m 1G
+    -m 2G
 
 _kernel:
   cargo build --target riscv64gc-unknown-none-elf

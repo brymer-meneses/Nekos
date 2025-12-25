@@ -3,14 +3,16 @@ use core::arch;
 use crate::println;
 use nekos_arch::riscv64::{self, CsrRead, CsrWrite};
 
-pub fn setup() {
-    let stvec = riscv64::Stvec(handler as u64);
+pub fn init() {
+    println!("Setting up the trap system.");
 
-    unsafe { riscv64::Stvec::write(stvec) }
+    let stvec = riscv64::stvec(handler as u64);
+
+    unsafe { riscv64::stvec::write(stvec) }
 }
 
 extern "C" fn handle_trap(frame: &mut riscv64::TrapFrame) {
-    let scause = riscv64::Scause::read();
+    let scause = riscv64::scause::read();
 
     if scause.is_interrupt() {
         handle_interrupt(frame);
@@ -20,7 +22,7 @@ extern "C" fn handle_trap(frame: &mut riscv64::TrapFrame) {
 }
 
 fn handle_interrupt(_frame: &mut riscv64::TrapFrame) {
-    let scause = riscv64::Scause::read();
+    let scause = riscv64::scause::read();
 
     match scause.interrupt_code() {
         _ => panic!("Unhandled interrupt"),
