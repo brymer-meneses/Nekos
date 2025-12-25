@@ -15,7 +15,7 @@ macro_rules! info {
 
 macro_rules! debug {
     ($($arg:tt)*) => {
-        #[cfg(not(debug_assertions))]
+        #[cfg(debug_assertions)]
         {
             use nekos_arch::print;
             use colorz::Colorize;
@@ -25,6 +25,11 @@ macro_rules! debug {
                 "]:".bright_black(),
                 format_args!($($arg)*).bright_black()
             );
+        }
+
+        #[cfg(not(debug_assertions))]
+        {
+            let _ = format_args!($($arg)*);
         }
     };
 }
