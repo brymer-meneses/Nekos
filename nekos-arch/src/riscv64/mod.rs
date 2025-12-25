@@ -1,7 +1,9 @@
 #![allow(non_camel_case_types)]
 
+mod sbi;
 mod trap;
 
+pub use sbi::log;
 pub use trap::*;
 
 pub trait CsrWrite {
@@ -11,59 +13,48 @@ pub trait CsrRead {
     fn read() -> Self;
 }
 
-macro_rules! impl_csr_read {
-    ($name:ident, $register:literal) => {
+macro_rules! impl_csr {
+    ($name:ident) => {
+        #[derive(Clone, Copy)]
+        pub struct $name(u64);
+
+        impl CsrWrite for $name {
+            unsafe fn write(value: Self) {
+                unsafe {
+                    core::arch::asm!(concat!("csrw ", stringify!($name), ", {}"), in(reg) value.0);
+                }
+            }
+        }
+
         impl CsrRead for $name {
             fn read() -> Self {
                 let mut value;
                 unsafe {
-                    core::arch::asm!(concat!("csrr {}, ", $register), out(reg) value);
+                    core::arch::asm!(concat!("csrr {}, ", stringify!($name)), out(reg) value);
                 }
                 $name(value)
             }
         }
-    };
-}
 
-macro_rules! impl_csr_write {
-    ($name:ident, $register:literal) => {
-        impl CsrWrite for $name {
-            unsafe fn write(value: Self) {
-                unsafe {
-                    core::arch::asm!(concat!("csrw ", $register, ", {}"), in(reg) value.0);
-                }
+        impl $name {
+            pub const fn new(value: u64) -> Self {
+                $name(value)
+            }
+
+            pub const fn value(&self) -> u64 {
+                self.0
             }
         }
     };
 }
 
-macro_rules! impl_csr {
-    ($name:ident, $register:literal) => {
-        impl_csr_write!($name, $register);
-        impl_csr_read!($name, $register);
-    };
-}
-
-pub struct scause(u64);
-impl_csr!(scause, "scause");
-
-pub struct stval(u64);
-impl_csr!(stval, "stval");
-
-pub struct sepc(u64);
-impl_csr!(sepc, "sepc");
-
-pub struct sstatus(u64);
-impl_csr!(sstatus, "sstatus");
-
-pub struct stvec(pub u64);
-impl_csr!(stvec, "stvec");
+impl_csr!(scause);
+impl_csr!(stval);
+impl_csr!(sepc);
+impl_csr!(sstatus);
+impl_csr!(stvec);
 
 impl scause {
-    pub const fn new(value: u64) -> scause {
-        scause(value)
-    }
-
     pub fn interrupt_code(&self) -> InterruptCode {
         let code = self.code();
         match code {

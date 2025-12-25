@@ -30,6 +30,7 @@ run: iso
     -device usb-mouse \
     -drive if=pflash,unit=0,format=raw,file=target/edk2-ovmf/ovmf-code-riscv64.fd,readonly=on \
     -cdrom target/nekos.iso \
+    -display none \
     -serial stdio \
     -m 2G
 

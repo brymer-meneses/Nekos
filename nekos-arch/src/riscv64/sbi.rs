@@ -17,17 +17,19 @@ unsafe fn call(
     let mut error;
     let mut value;
 
-    core::arch::asm!(
-        "ecall",
-        inout("a0") arg0 => error,
-        inout("a1") arg1 => value,
-        in("a2") arg2,
-        in("a3") arg3,
-        in("a4") arg4,
-        in("a5") arg5,
-        in("a6") fid,
-        in("a7") eid,
-    );
+    unsafe {
+        core::arch::asm!(
+            "ecall",
+            inout("a0") arg0 => error,
+            inout("a1") arg1 => value,
+            in("a2") arg2,
+            in("a3") arg3,
+            in("a4") arg4,
+            in("a5") arg5,
+            in("a6") fid,
+            in("a7") eid,
+        );
+    }
 
     SibReturn { error, value }
 }
@@ -46,19 +48,7 @@ impl fmt::Write for SbiWriter {
     }
 }
 
-#[macro_export]
-macro_rules! print {
-    ($($arg:tt)*) => ($crate::sbi::_print(format_args!($($arg)*)));
-}
-
-#[macro_export]
-macro_rules! println {
-    () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
-}
-
-#[doc(hidden)]
-pub fn _print(args: fmt::Arguments) {
+pub fn log(args: fmt::Arguments) {
     use core::fmt::Write;
     let mut writer = SbiWriter {};
     writer.write_fmt(args).unwrap();

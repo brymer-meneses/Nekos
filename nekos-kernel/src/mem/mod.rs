@@ -1,4 +1,3 @@
-use crate::println;
 use limine::memory_map::EntryType;
 use limine::request::{HhdmRequest, MemoryMapRequest};
 
@@ -13,28 +12,29 @@ static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
 static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
 
 pub fn init() {
-    println!("Setting up the paging system.");
+    debug!("Setting up the paging system.");
 
     let hhdm_offset = HHDM_REQUEST
         .get_response()
         .expect("No HHDM response.")
         .offset();
 
-    println!("HHDM Offset at {}", VirtualAddr::new(hhdm_offset));
+    debug!("HHDM Offset at {}", VirtualAddr::new(hhdm_offset));
 
     let memory_map_entries = MEMORY_MAP_REQUEST
         .get_response()
         .expect("No Memory Map response.")
         .entries();
 
-    for entry in memory_map_entries.iter().filter(|entry| {
-        let entry_type = entry.entry_type;
-        entry_type == EntryType::USABLE
-    }) {
-        println!(
-            "Found usable physical memory region at {} - {}",
+    for entry in memory_map_entries
+        .iter()
+        .filter(|entry| entry.entry_type == EntryType::USABLE)
+    {
+        debug!(
+            "Found physical memory region at {} - {}, pages {}",
             VirtualAddr::new(entry.base),
-            VirtualAddr::new(entry.base + entry.length)
+            VirtualAddr::new(entry.base + entry.length),
+            entry.length / 4096
         );
     }
 }

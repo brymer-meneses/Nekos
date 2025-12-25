@@ -1,11 +1,14 @@
 #![no_std]
 #![no_main]
 
+#[macro_use]
+mod log;
+
 mod mem;
-mod sbi;
 mod trap;
 
 use limine::BaseRevision;
+use nekos_arch::println;
 
 #[unsafe(link_section = ".requests")]
 static BASE_REVISION: BaseRevision = BaseRevision::new();
@@ -19,11 +22,13 @@ extern "C" fn kmain() -> ! {
     trap::init();
     mem::init();
 
+    info!("Hello world!");
+
     nekos_arch::halt();
 }
 
 #[panic_handler]
 fn rust_panic(info: &core::panic::PanicInfo) -> ! {
-    println!("Panic at the kernel!: {}", info.message());
+    info!("Panic at the kernel!: {}", info.message());
     nekos_arch::halt();
 }

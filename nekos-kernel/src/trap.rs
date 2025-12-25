@@ -1,14 +1,18 @@
 use core::arch;
 
+use crate::mem::VirtualAddr;
 use crate::println;
 use nekos_arch::riscv64::{self, CsrRead, CsrWrite};
 
 pub fn init() {
-    println!("Setting up the trap system.");
-
-    let stvec = riscv64::stvec(handler as u64);
+    let stvec = riscv64::stvec::new(handler as u64);
 
     unsafe { riscv64::stvec::write(stvec) }
+
+    info!(
+        "Initialized interrupts and exceptions at {}.",
+        VirtualAddr::new(stvec.value())
+    );
 }
 
 extern "C" fn handle_trap(frame: &mut riscv64::TrapFrame) {
