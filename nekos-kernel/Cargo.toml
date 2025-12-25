@@ -16,6 +16,6 @@ panic = "abort"
 
 [[bin]]
 name = "nekos-kernel"
-path = "src/boot.rs"
+path = "src/main.rs"
 test = false
 bench = false
