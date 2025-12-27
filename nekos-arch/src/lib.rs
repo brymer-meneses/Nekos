@@ -16,13 +16,7 @@ pub fn halt() -> ! {
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => (
-    #[cfg(target_arch = "riscv64")]
-    $crate::riscv64::log(format_args!($($arg)*))
+        #[cfg(target_arch = "riscv64")]
+        $crate::riscv64::print(format_args!($($arg)*))
     );
-}
-
-#[macro_export]
-macro_rules! println {
-    () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }

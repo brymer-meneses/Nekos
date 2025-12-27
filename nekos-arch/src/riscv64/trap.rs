@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum InterruptCode {
     SupervisorSoftwareInterrupt,
     VirtualSupervisorSoftwareInterrupt,
@@ -14,6 +15,7 @@ pub enum InterruptCode {
     LocalCounterOverflowInterrupt,
 }
 
+#[derive(Debug)]
 pub enum ExceptionCode {
     InstructionAddressMisaligned,
     InstructionAccessFault,

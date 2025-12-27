@@ -1,7 +1,6 @@
 use core::arch;
 
 use crate::mem::VirtualAddr;
-use crate::println;
 use nekos_arch::riscv64::{self, CsrRead, CsrWrite};
 
 pub fn init() {
@@ -28,12 +27,13 @@ extern "C" fn handle_trap(frame: &mut riscv64::TrapFrame) {
 fn handle_interrupt(_frame: &mut riscv64::TrapFrame) {
     let scause = riscv64::scause::read();
 
-    match scause.interrupt_code() {
-        _ => panic!("Unhandled interrupt"),
-    }
+    panic!("Unhandled interrupt: `{:?}`.", scause.interrupt_code());
 }
+
 fn handle_exception(_frame: &mut riscv64::TrapFrame) {
-    println!("here")
+    let scause = riscv64::scause::read();
+
+    panic!("Unhandled exception: `{:?}`.", scause.exception_code());
 }
 
 #[unsafe(naked)]

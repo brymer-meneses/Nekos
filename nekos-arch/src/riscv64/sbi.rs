@@ -48,7 +48,7 @@ impl fmt::Write for SbiWriter {
     }
 }
 
-pub fn log(args: fmt::Arguments) {
+pub fn print(args: fmt::Arguments) {
     use core::fmt::Write;
     let mut writer = SbiWriter {};
     writer.write_fmt(args).unwrap();

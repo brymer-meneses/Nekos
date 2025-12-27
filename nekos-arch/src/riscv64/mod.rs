@@ -1,7 +1,7 @@
 mod sbi;
 mod trap;
 
-pub use sbi::log;
+pub use sbi::print;
 pub use trap::*;
 
 pub trait CsrWrite {

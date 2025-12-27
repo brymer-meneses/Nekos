@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct VirtualAddr(u64);
 
 impl VirtualAddr {
@@ -19,11 +20,12 @@ impl VirtualAddr {
     }
 
     #[inline]
-    pub const fn raw(&self) -> u64 {
+    pub const fn addr(&self) -> u64 {
         self.0
     }
 }
 
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct PhysicalAddr(u64);
 
 impl PhysicalAddr {
@@ -33,7 +35,7 @@ impl PhysicalAddr {
     }
 
     #[inline]
-    pub const fn raw(&self) -> u64 {
+    pub const fn addr(&self) -> u64 {
         self.0
     }
 }

@@ -8,7 +8,7 @@ mod mem;
 mod trap;
 
 use limine::BaseRevision;
-use nekos_arch::println;
+use nekos_arch::print;
 
 #[unsafe(link_section = ".requests")]
 static BASE_REVISION: BaseRevision = BaseRevision::new();
@@ -28,7 +28,14 @@ extern "C" fn kmain() -> ! {
 }
 
 #[panic_handler]
-fn rust_panic(info: &core::panic::PanicInfo) -> ! {
-    info!("Panic at the kernel!: {}", info.message());
+fn panic_handler(info: &core::panic::PanicInfo) -> ! {
+    use colorz::Colorize;
+    print!(
+        "{}{}{} {}\n",
+        "[".red(),
+        "panic".red().bold(),
+        "]:".red(),
+        info.message().red(),
+    );
     nekos_arch::halt();
 }
