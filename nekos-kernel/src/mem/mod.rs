@@ -2,11 +2,14 @@ use limine::memory_map::EntryType;
 use limine::request::{HhdmRequest, MemoryMapRequest};
 
 mod addr;
-mod page_allocator;
+mod pmm;
+mod vmm;
+
+use crate::log;
 
 pub use addr::*;
 
-use crate::mem::page_allocator::{FreeListNode, PAGE_ALLOCATOR};
+use crate::mem::pmm::{FreeListNode, PAGE_ALLOCATOR};
 
 #[unsafe(link_section = ".requests")]
 static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
@@ -15,14 +18,14 @@ static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
 static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
 
 pub fn init() {
-    debug!("Setting up the paging system.");
+    log::debug!("Setting up the paging system.");
 
     let hhdm_offset = HHDM_REQUEST
         .get_response()
         .expect("No HHDM response.")
         .offset();
 
-    debug!("HHDM Offset at {}", VirtualAddr::new(hhdm_offset));
+    log::debug!("HHDM Offset at {}", VirtualAddr::new(hhdm_offset));
 
     let memory_map_entries = MEMORY_MAP_REQUEST
         .get_response()
@@ -51,7 +54,7 @@ pub fn init() {
         let base = PhysicalAddr::new(entry.base);
         let pages = (entry.length / 4096) as usize;
 
-        debug!(
+        log::debug!(
             "`{}' Memory at {} - {} with {} pages.",
             entry_type,
             PhysicalAddr::new(entry.base),
@@ -76,7 +79,7 @@ pub fn translate_hhdm(physical_addr: PhysicalAddr) -> VirtualAddr {
     VirtualAddr::new(physical_addr.addr() + hhdm_offset)
 }
 
-pub fn allocate_pages(num_pages: usize) -> Result<PhysicalAddr, page_allocator::AllocError> {
+pub fn allocate_pages(num_pages: usize) -> Result<PhysicalAddr, pmm::AllocError> {
     let mut allocator = PAGE_ALLOCATOR.lock();
     allocator.allocate(num_pages)
 }

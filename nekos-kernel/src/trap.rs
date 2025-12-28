@@ -1,3 +1,4 @@
+use crate::log;
 use core::arch;
 
 use crate::mem::VirtualAddr;
@@ -8,7 +9,7 @@ pub fn init() {
 
     unsafe { riscv64::stvec::write(stvec) }
 
-    info!(
+    log::info!(
         "Initialized interrupts and exceptions at {}.",
         VirtualAddr::new(stvec.value())
     );

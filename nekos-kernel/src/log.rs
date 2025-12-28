@@ -13,21 +13,6 @@ macro_rules! info {
     };
 }
 
-macro_rules! warn {
-    ($($arg:tt)*) => {
-        {
-            use nekos_arch::print;
-            use colorz::Colorize;
-            print!("{}{}{} {}\n",
-                "[".orange(),
-                "info".orange().bold(),
-                "]:".orange(),
-                format_args!($($arg)*).orange()
-            );
-        }
-    };
-}
-
 macro_rules! debug {
     ($($arg:tt)*) => {
         #[cfg(debug_assertions)]
@@ -48,3 +33,6 @@ macro_rules! debug {
         }
     };
 }
+
+pub(crate) use debug;
+pub(crate) use info;

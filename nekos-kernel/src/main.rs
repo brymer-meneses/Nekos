@@ -1,8 +1,7 @@
 #![no_std]
 #![no_main]
 
-#[macro_use]
-mod log;
+pub mod log;
 
 mod mem;
 mod trap;
@@ -22,7 +21,7 @@ extern "C" fn kmain() -> ! {
     trap::init();
     mem::init();
 
-    info!("Hello world!");
+    log::info!("Hello world!");
 
     nekos_arch::halt();
 }
