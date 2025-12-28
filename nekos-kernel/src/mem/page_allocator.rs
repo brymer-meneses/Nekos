@@ -30,7 +30,8 @@ unsafe impl Send for FreeListNode {}
 pub struct AllocError;
 
 impl FreeListAllocator {
-    pub const fn new() -> Self {
+    // This should only be constructible from this module.
+    const fn new() -> Self {
         FreeListAllocator {
             root: FreeListNode {
                 next: None,
@@ -83,7 +84,7 @@ impl FreeListAllocator {
 
         let new_node = unsafe { FreeListNode::from_addr(phys_addr, num_pages, phys_to_virt) };
         FreeListNode::append(current, new_node);
-        self.coalesce();
+        self.coalesce(new_node);
     }
 
     pub fn append_node(&mut self, node: NonNull<FreeListNode>) {
@@ -98,17 +99,21 @@ impl FreeListAllocator {
         }
     }
 
-    fn coalesce(&mut self) {
-        let Some(mut current) = self.head() else {
-            return;
-        };
+    fn coalesce(&mut self, mut node: NonNull<FreeListNode>) {
+        let prev = unsafe { node.as_ref().prev };
+        let next = unsafe { node.as_ref().next };
 
-        while let Some(next) = unsafe { current.as_ref().next } {
-            if FreeListNode::is_adjacent(current, next) {
-                FreeListNode::extend(current, next);
-                continue;
+        if let Some(prev) = prev {
+            if FreeListNode::is_adjacent(prev, node) {
+                FreeListNode::extend(prev, node);
+                node = prev;
             }
-            current = next;
+        }
+
+        if let Some(next) = next {
+            if FreeListNode::is_adjacent(node, next) {
+                FreeListNode::extend(node, next);
+            }
         }
     }
 
