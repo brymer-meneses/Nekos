@@ -4,26 +4,17 @@ use crate::misc;
 use core::mem::MaybeUninit;
 use core::ptr::NonNull;
 
+use super::VirtualMemoryFlags;
+use super::addr::VirtualAddr;
+
 use crate::arch::PAGE_SIZE;
 use bitflags::bitflags;
-
-use crate::mem::VirtualAddr;
-
-bitflags! {
-    #[derive(Clone, Copy, Debug)]
-    pub struct RangeFlags: u8 {
-        const Writeable = 1 << 0;
-        const Executable = 1 << 1;
-        const UserAccessible = 1 << 2;
-        const MMIO = 1 << 3;
-    }
-}
 
 /// A `Range` corresponds to an region in the virtual memory address space.
 pub struct Range {
     base: VirtualAddr,
     length: usize,
-    flags: RangeFlags,
+    flags: VirtualMemoryFlags,
     is_used: bool,
 }
 
@@ -55,7 +46,7 @@ impl RangeAllocator {
         }
     }
 
-    pub fn allocate_range(&mut self, size: usize, range_flags: RangeFlags) -> VirtualAddr {
+    pub fn allocate_range(&mut self, size: usize, flags: VirtualMemoryFlags) -> VirtualAddr {
         todo!()
     }
 

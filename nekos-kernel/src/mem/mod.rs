@@ -1,3 +1,4 @@
+use bitflags::bitflags;
 use limine::memory_map::EntryType;
 use limine::request::{HhdmRequest, MemoryMapRequest};
 
@@ -17,6 +18,16 @@ static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
 
 #[unsafe(link_section = ".requests")]
 static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
+
+bitflags! {
+    #[derive(Clone, Copy, Debug)]
+    pub struct VirtualMemoryFlags: u8 {
+        const Writeable = 1 << 0;
+        const Executable = 1 << 1;
+        const UserAccessible = 1 << 2;
+        const MMIO = 1 << 3;
+    }
+}
 
 pub fn init() {
     log::debug!("Setting up the paging system.");

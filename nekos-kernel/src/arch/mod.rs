@@ -1,8 +1,10 @@
 #[cfg(target_arch = "riscv64")]
 pub mod riscv64;
 
+use crate::mem::{PhysicalAddr, VirtualAddr, VirtualMemoryFlags};
 use core::arch::asm;
 
+#[inline]
 pub fn halt() -> ! {
     loop {
         unsafe {
@@ -12,9 +14,16 @@ pub fn halt() -> ! {
     }
 }
 
+#[inline]
 pub fn init() {
     #[cfg(target_arch = "riscv64")]
     riscv64::init();
+}
+
+#[inline]
+pub fn map_page(virtual_addr: VirtualAddr, physical_addr: PhysicalAddr, flags: VirtualMemoryFlags) {
+    #[cfg(target_arch = "riscv64")]
+    riscv64::map_page(virtual_addr, physical_addr, flags);
 }
 
 pub const PAGE_SIZE: u64 = 4096;
