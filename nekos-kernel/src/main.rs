@@ -4,11 +4,11 @@
 pub mod log;
 pub mod misc;
 
+pub mod arch;
 mod mem;
-mod trap;
 
+use arch::print;
 use limine::BaseRevision;
-use nekos_arch::print;
 
 #[unsafe(link_section = ".requests")]
 static BASE_REVISION: BaseRevision = BaseRevision::new();
@@ -19,12 +19,12 @@ extern "C" fn kmain() -> ! {
     // removed by the linker.
     assert!(BASE_REVISION.is_supported());
 
-    trap::init();
+    arch::init();
     mem::init();
 
     log::info!("Hello world!");
 
-    nekos_arch::halt();
+    arch::halt();
 }
 
 #[panic_handler]
@@ -37,5 +37,6 @@ fn panic_handler(info: &core::panic::PanicInfo) -> ! {
         "]:".red(),
         info.message().red(),
     );
-    nekos_arch::halt();
+
+    arch::halt();
 }

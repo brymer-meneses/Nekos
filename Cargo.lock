@@ -33,17 +33,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "nekos-arch"
-version = "0.1.0"
-
-[[package]]
 name = "nekos-kernel"
 version = "0.1.0"
 dependencies = [
  "bitflags",
  "colorz",
  "limine",
- "nekos-arch",
  "spin",
 ]
 

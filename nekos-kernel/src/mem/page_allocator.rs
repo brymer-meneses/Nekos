@@ -1,10 +1,10 @@
 #![allow(unused)]
 
+use crate::arch::PAGE_SIZE;
 use crate::mem::{PhysicalAddr, VirtualAddr};
+
 use core::marker::PhantomPinned;
 use core::{num, ptr::NonNull};
-
-use nekos_arch::PAGE_SIZE;
 
 use spin::Mutex;
 

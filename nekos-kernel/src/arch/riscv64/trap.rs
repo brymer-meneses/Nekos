@@ -1,13 +1,97 @@
+#[derive(Debug)]
+pub enum InterruptCode {
+    SupervisorSoftwareInterrupt,
+    VirtualSupervisorSoftwareInterrupt,
+    MachineSoftwareInterrupt,
+
+    SupervisorTimerInterrupt,
+    VirtualSupervisorTimerInterrupt,
+    MachineTimerInterrupt,
+
+    SupervisorExternalInterrupt,
+    VirtualSupervisorExternalInterrupt,
+    MachineExternalInterrupt,
+    SupervisorGuestExternalInterrupt,
+    LocalCounterOverflowInterrupt,
+}
+
+#[derive(Debug)]
+pub enum ExceptionCode {
+    InstructionAddressMisaligned,
+    InstructionAccessFault,
+    InstructionPageFault,
+    InstructionGuestPageFault,
+
+    LoadPageFault,
+
+    IllegalInstruction,
+    Breakpoint,
+
+    LoadAddressMisaligned,
+    LoadAccessFault,
+    LoadGuestPageFault,
+
+    StoreAmoAddressMisaligned,
+    StoreAmoAccessFault,
+    StoreAmoPageFault,
+    StoreAmoGuestPageFault,
+
+    EnvironmentCallFromUserMode,
+    EnvironmentCallFromHypervisorMode,
+    EnvironmentCallFromVirtualSupervisorMode,
+    EnvironmentCallFromMachineMode,
+
+    DoubleTrap,
+    SoftwareCheck,
+    HardwareError,
+    VirtualInstruction,
+}
+
+#[repr(C, packed)]
+pub struct TrapFrame {
+    pub ra: u64,
+    pub gp: u64,
+    pub tp: u64,
+    pub t0: u64,
+    pub t1: u64,
+    pub t2: u64,
+    pub t3: u64,
+    pub t4: u64,
+    pub t5: u64,
+    pub t6: u64,
+    pub a0: u64,
+    pub a1: u64,
+    pub a2: u64,
+    pub a3: u64,
+    pub a4: u64,
+    pub a5: u64,
+    pub a6: u64,
+    pub a7: u64,
+    pub s0: u64,
+    pub s1: u64,
+    pub s2: u64,
+    pub s3: u64,
+    pub s4: u64,
+    pub s5: u64,
+    pub s6: u64,
+    pub s7: u64,
+    pub s8: u64,
+    pub s9: u64,
+    pub s10: u64,
+    pub s11: u64,
+    pub sp: u64,
+}
+
 use crate::log;
 use core::arch;
 
+use super::csr::{self, CsrRead, CsrWrite};
 use crate::mem::VirtualAddr;
-use nekos_arch::riscv64::{self, CsrRead, CsrWrite};
 
 pub fn init() {
-    let stvec = riscv64::stvec::new(handler as u64);
+    let stvec = csr::stvec::new(handler as u64);
 
-    unsafe { riscv64::stvec::write(stvec) }
+    unsafe { csr::stvec::write(stvec) }
 
     log::info!(
         "Initialized interrupts and exceptions at {}.",
@@ -15,8 +99,8 @@ pub fn init() {
     );
 }
 
-extern "C" fn handle_trap(frame: &mut riscv64::TrapFrame) {
-    let scause = riscv64::scause::read();
+extern "C" fn handle_trap(frame: &mut TrapFrame) {
+    let scause = csr::scause::read();
 
     if scause.is_interrupt() {
         handle_interrupt(frame);
@@ -25,14 +109,14 @@ extern "C" fn handle_trap(frame: &mut riscv64::TrapFrame) {
     }
 }
 
-fn handle_interrupt(_frame: &mut riscv64::TrapFrame) {
-    let scause = riscv64::scause::read();
+fn handle_interrupt(_frame: &mut TrapFrame) {
+    let scause = csr::scause::read();
 
     panic!("Unhandled interrupt: `{:?}`.", scause.interrupt_code());
 }
 
-fn handle_exception(_frame: &mut riscv64::TrapFrame) {
-    let scause = riscv64::scause::read();
+fn handle_exception(_frame: &mut TrapFrame) {
+    let scause = csr::scause::read();
 
     panic!("Unhandled exception: `{:?}`.", scause.exception_code());
 }

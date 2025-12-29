@@ -4,8 +4,8 @@ use crate::misc;
 use core::mem::MaybeUninit;
 use core::ptr::NonNull;
 
+use crate::arch::PAGE_SIZE;
 use bitflags::bitflags;
-use nekos_arch::PAGE_SIZE;
 
 use crate::mem::VirtualAddr;
 

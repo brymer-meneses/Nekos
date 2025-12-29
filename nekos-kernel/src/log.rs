@@ -1,9 +1,8 @@
 macro_rules! info {
     ($($arg:tt)*) => {
         {
-            use nekos_arch::print;
             use colorz::Colorize;
-            print!("{}{}{} {}\n",
+            $crate::arch::print!("{}{}{} {}\n",
                 "[".green(),
                 "info".cyan().bold(),
                 "]:".green(),
@@ -17,9 +16,8 @@ macro_rules! debug {
     ($($arg:tt)*) => {
         #[cfg(debug_assertions)]
         {
-            use nekos_arch::print;
             use colorz::Colorize;
-            print!("{}{}{} {}\n",
+            $crate::arch::print!("{}{}{} {}\n",
                 "[".bright_black(),
                 "debug".bright_black().bold(),
                 "]:".bright_black(),

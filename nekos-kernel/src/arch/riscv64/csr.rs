@@ -1,8 +1,4 @@
-mod sbi;
-mod trap;
-
-pub use sbi::print;
-pub use trap::*;
+use super::trap::*;
 
 pub trait CsrWrite {
     unsafe fn write(value: Self);

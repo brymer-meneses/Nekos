@@ -9,8 +9,8 @@ use crate::log;
 
 pub use addr::*;
 
+use crate::arch::PAGE_SIZE;
 use crate::mem::page_allocator::{FreeListNode, PAGE_ALLOCATOR};
-use nekos_arch::PAGE_SIZE;
 
 #[unsafe(link_section = ".requests")]
 static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
