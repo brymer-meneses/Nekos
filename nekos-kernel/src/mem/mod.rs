@@ -2,14 +2,15 @@ use limine::memory_map::EntryType;
 use limine::request::{HhdmRequest, MemoryMapRequest};
 
 mod addr;
-mod pmm;
-mod vmm;
+mod page_allocator;
+mod range_allocator;
 
 use crate::log;
 
 pub use addr::*;
 
-use crate::mem::pmm::{FreeListNode, PAGE_ALLOCATOR};
+use crate::mem::page_allocator::{FreeListNode, PAGE_ALLOCATOR};
+use nekos_arch::PAGE_SIZE;
 
 #[unsafe(link_section = ".requests")]
 static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
@@ -52,7 +53,7 @@ pub fn init() {
     for entry in memory_map_entries.iter() {
         let entry_type = entry_type_to_str(entry.entry_type);
         let base = PhysicalAddr::new(entry.base);
-        let pages = (entry.length / 4096) as usize;
+        let pages = (entry.length / PAGE_SIZE) as usize;
 
         log::debug!(
             "`{}' Memory at {} - {} with {} pages.",
@@ -79,7 +80,7 @@ pub fn translate_hhdm(physical_addr: PhysicalAddr) -> VirtualAddr {
     VirtualAddr::new(physical_addr.addr() + hhdm_offset)
 }
 
-pub fn allocate_pages(num_pages: usize) -> Result<PhysicalAddr, pmm::AllocError> {
+pub fn allocate_pages(num_pages: usize) -> Result<PhysicalAddr, page_allocator::AllocError> {
     let mut allocator = PAGE_ALLOCATOR.lock();
     allocator.allocate(num_pages)
 }

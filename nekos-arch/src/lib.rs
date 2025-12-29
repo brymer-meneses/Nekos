@@ -12,6 +12,8 @@ pub fn halt() -> ! {
         }
     }
 }
+#[cfg(target_arch = "riscv64")]
+pub const PAGE_SIZE: u64 = 4096;
 
 #[macro_export]
 macro_rules! print {

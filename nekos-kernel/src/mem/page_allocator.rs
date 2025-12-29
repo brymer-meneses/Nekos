@@ -4,6 +4,8 @@ use crate::mem::{PhysicalAddr, VirtualAddr};
 use core::marker::PhantomPinned;
 use core::{num, ptr::NonNull};
 
+use nekos_arch::PAGE_SIZE;
+
 use spin::Mutex;
 
 pub static PAGE_ALLOCATOR: Mutex<FreeListAllocator> = Mutex::new(FreeListAllocator::new());
@@ -13,6 +15,7 @@ pub struct FreeListAllocator {
     // free list is after this node.
     root: FreeListNode,
 
+    // This shouldn't be movable because we store pointers to the `root`
     _pin: PhantomPinned,
 }
 
@@ -91,7 +94,8 @@ impl FreeListAllocator {
         match self.tail() {
             Some(tail) => unsafe {
                 assert!(tail.as_ref().base < node.as_ref().base);
-                FreeListNode::append(tail, node)
+                FreeListNode::append(tail, node);
+                self.coalesce(node);
             },
             None => {
                 FreeListNode::append(NonNull::from_mut(&mut self.root), node);
@@ -167,7 +171,7 @@ impl FreeListNode {
 
     pub fn end(node: NonNull<FreeListNode>) -> PhysicalAddr {
         let node = unsafe { node.as_ref() };
-        PhysicalAddr::new(node.base.addr() + 4096 * node.num_pages as u64)
+        PhysicalAddr::new(node.base.addr() + PAGE_SIZE * node.num_pages as u64)
     }
 
     pub fn append(mut node: NonNull<FreeListNode>, mut next: NonNull<FreeListNode>) {
@@ -204,7 +208,7 @@ impl FreeListNode {
 
         node.num_pages -= num_pages;
 
-        let addr = node.base.addr() + 4096 * (node.num_pages as u64);
+        let addr = node.base.addr() + PAGE_SIZE * (node.num_pages as u64);
         PhysicalAddr::new(addr)
     }
 }

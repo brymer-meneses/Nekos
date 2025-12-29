@@ -2,6 +2,7 @@
 #![no_main]
 
 pub mod log;
+pub mod misc;
 
 mod mem;
 mod trap;

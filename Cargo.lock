@@ -40,6 +40,7 @@ version = "0.1.0"
 name = "nekos-kernel"
 version = "0.1.0"
 dependencies = [
+ "bitflags",
  "colorz",
  "limine",
  "nekos-arch",
