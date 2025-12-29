@@ -1,6 +1,7 @@
 use bitflags::bitflags;
 use limine::memory_map::EntryType;
 use limine::request::{HhdmRequest, MemoryMapRequest};
+use spin::Once;
 
 mod addr;
 mod page_allocator;
@@ -19,6 +20,8 @@ static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
 #[unsafe(link_section = ".requests")]
 static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
 
+static HHDM_OFFSET: Once<u64> = Once::new();
+
 bitflags! {
     #[derive(Clone, Copy, Debug)]
     pub struct VirtualMemoryFlags: u8 {
@@ -32,10 +35,14 @@ bitflags! {
 pub fn init() {
     log::debug!("Setting up the paging system.");
 
-    let hhdm_offset = HHDM_REQUEST
-        .get_response()
-        .expect("No HHDM response.")
-        .offset();
+    HHDM_OFFSET.call_once(|| {
+        HHDM_REQUEST
+            .get_response()
+            .expect("No HHDM response.")
+            .offset()
+    });
+
+    let hhdm_offset = unsafe { *HHDM_OFFSET.get_unchecked() };
 
     log::debug!("HHDM Offset at {}", VirtualAddr::new(hhdm_offset));
 
@@ -83,10 +90,9 @@ pub fn init() {
 }
 
 pub fn translate_hhdm(physical_addr: PhysicalAddr) -> VirtualAddr {
-    let hhdm_offset = HHDM_REQUEST
-        .get_response()
-        .expect("No HHDM response.")
-        .offset();
+    let hhdm_offset = HHDM_OFFSET
+        .get()
+        .expect("Tried to get HHDM offset when `mem::init` is yet to be called.");
 
     VirtualAddr::new(physical_addr.addr() + hhdm_offset)
 }

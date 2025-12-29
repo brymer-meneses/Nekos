@@ -2,6 +2,7 @@
 
 use crate::misc;
 use core::mem::MaybeUninit;
+use core::ops::Index;
 use core::ptr::NonNull;
 
 use super::VirtualMemoryFlags;
@@ -11,6 +12,7 @@ use crate::arch::PAGE_SIZE;
 use bitflags::bitflags;
 
 /// A `Range` corresponds to an region in the virtual memory address space.
+#[derive(Clone, Copy)]
 pub struct Range {
     base: VirtualAddr,
     length: usize,
@@ -79,5 +81,40 @@ impl RangeObject {
 
             NonNull::new_unchecked(addr)
         }
+    }
+
+    pub fn iter(&self) -> RangeObjectIter<'_> {
+        RangeObjectIter {
+            current: 0,
+            size: self.size,
+            object: self,
+        }
+    }
+}
+
+pub struct RangeObjectIter<'a> {
+    current: usize,
+    size: usize,
+    object: &'a RangeObject,
+}
+
+impl<'a> Iterator for RangeObjectIter<'a> {
+    type Item = Range;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current >= self.size {
+            return None;
+        }
+
+        Some(self.object[self.size])
+    }
+}
+
+impl Index<usize> for RangeObject {
+    type Output = Range;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        debug_assert!(index < self.size);
+        unsafe { self.objects[index].assume_init_ref() }
     }
 }
