@@ -51,6 +51,14 @@ pub fn root_page_table() -> PhysicalAddr {
     }
 }
 
+#[inline]
+pub fn flush_tlb() {
+    unsafe {
+        #[cfg(target_arch = "riscv64")]
+        core::arch::asm!("sfence.vma");
+    }
+}
+
 pub const PAGE_SIZE: u64 = 4096;
 
 macro_rules! print {
