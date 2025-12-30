@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use crate::arch::PAGE_SIZE;
-use crate::mem::{PhysicalAddr, VirtualAddr};
+use crate::mem::{PageDirectory, PhysicalAddr, VirtualAddr};
 
 use core::marker::PhantomPinned;
 use core::{num, ptr::NonNull};
@@ -30,6 +30,7 @@ pub struct FreeListNode {
 /// SAFETY: The nodes will only reside in the mutex anyway.
 unsafe impl Send for FreeListNode {}
 
+#[derive(Debug)]
 pub struct AllocError;
 
 impl FreeListAllocator {
@@ -70,11 +71,11 @@ impl FreeListAllocator {
         Err(AllocError)
     }
 
-    pub fn deallocate(
+    pub fn deallocate<T: PageDirectory>(
         &mut self,
+        directory: &T,
         phys_addr: PhysicalAddr,
         num_pages: usize,
-        phys_to_virt: fn(PhysicalAddr) -> VirtualAddr,
     ) {
         let mut current = NonNull::from_mut(&mut self.root);
 
@@ -85,7 +86,7 @@ impl FreeListAllocator {
             current = next;
         }
 
-        let new_node = unsafe { FreeListNode::from_addr(phys_addr, num_pages, phys_to_virt) };
+        let new_node = unsafe { FreeListNode::from_addr(directory, phys_addr, num_pages) };
         FreeListNode::append(current, new_node);
         self.coalesce(new_node);
     }
@@ -135,12 +136,12 @@ impl FreeListAllocator {
 }
 
 impl FreeListNode {
-    pub unsafe fn from_addr(
+    pub unsafe fn from_addr<T: PageDirectory>(
+        directory: &T,
         phys_addr: PhysicalAddr,
         num_pages: usize,
-        phys_to_virt: fn(PhysicalAddr) -> VirtualAddr,
     ) -> NonNull<FreeListNode> {
-        let virt_addr = phys_to_virt(phys_addr);
+        let virt_addr = directory.translate(phys_addr);
         let ptr = virt_addr.as_mut_ptr() as *mut FreeListNode;
         debug_assert!(ptr.is_aligned());
 

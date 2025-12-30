@@ -1,7 +1,7 @@
 #[cfg(target_arch = "riscv64")]
 pub mod riscv64;
 
-use crate::mem::{PhysicalAddr, VirtualAddr, VirtualMemoryFlags};
+use crate::mem::{PageDirectory, PageMapErr, PhysicalAddr, VirtualAddr, VirtualMemoryFlags};
 use core::arch::asm;
 
 #[inline]
@@ -21,9 +21,34 @@ pub fn init() {
 }
 
 #[inline]
-pub fn map_page(virtual_addr: VirtualAddr, physical_addr: PhysicalAddr, flags: VirtualMemoryFlags) {
+pub fn map_page<T: PageDirectory>(
+    directory: &T,
+    virtual_addr: VirtualAddr,
+    physical_addr: PhysicalAddr,
+    flags: VirtualMemoryFlags,
+) -> Result<(), PageMapErr> {
     #[cfg(target_arch = "riscv64")]
-    riscv64::map_page(virtual_addr, physical_addr, flags);
+    {
+        return riscv64::map_page(directory, virtual_addr, physical_addr, flags);
+    }
+    #[cfg(not(target_arch = "riscv64"))]
+    {
+        compile_error!("Unsupported architecture - only riscv64 is supported");
+    }
+}
+
+#[inline]
+pub fn root_page_table() -> PhysicalAddr {
+    #[cfg(target_arch = "riscv64")]
+    {
+        use crate::arch::riscv64::csr::CsrRead;
+        let satp = riscv64::csr::satp::read();
+        return satp.ppn().as_physical_addr();
+    }
+    #[cfg(not(target_arch = "riscv64"))]
+    {
+        compile_error!("Unsupported architecture - only riscv64 is supported");
+    }
 }
 
 pub const PAGE_SIZE: u64 = 4096;

@@ -23,6 +23,10 @@ impl VirtualAddr {
     pub const fn addr(&self) -> u64 {
         self.0
     }
+
+    pub const fn is_aligned_with(&self, alignment: u64) -> bool {
+        self.addr() & (alignment - 1) == 0
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
@@ -37,6 +41,10 @@ impl PhysicalAddr {
     #[inline]
     pub const fn addr(&self) -> u64 {
         self.0
+    }
+
+    pub const fn is_aligned_with(&self, alignment: u64) -> bool {
+        self.addr() & (alignment - 1) == 0
     }
 }
 

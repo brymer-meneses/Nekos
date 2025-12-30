@@ -1,14 +1,16 @@
+mod mem;
 mod sbi;
 mod trap;
 
 pub mod csr;
 pub use sbi::print;
 
-use crate::mem::{PhysicalAddr, VirtualAddr, VirtualMemoryFlags};
+use crate::log;
 
 pub fn init() {
+    log::debug!("Initializing arch");
+
     trap::init();
 }
 
-pub fn map_page(virtual_addr: VirtualAddr, physical_addr: PhysicalAddr, flags: VirtualMemoryFlags) {
-}
+pub use mem::map_page;

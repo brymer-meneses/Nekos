@@ -1,26 +1,16 @@
 use bitflags::bitflags;
 use limine::memory_map::EntryType;
-use limine::request::{HhdmRequest, MemoryMapRequest};
-use spin::Once;
 
 mod addr;
 mod page_allocator;
 mod range_allocator;
 
-use crate::log;
+use crate::{boot, log};
 
 pub use addr::*;
 
 use crate::arch::PAGE_SIZE;
 use crate::mem::page_allocator::{FreeListNode, PAGE_ALLOCATOR};
-
-#[unsafe(link_section = ".requests")]
-static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
-
-#[unsafe(link_section = ".requests")]
-static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
-
-static HHDM_OFFSET: Once<u64> = Once::new();
 
 bitflags! {
     #[derive(Clone, Copy, Debug)]
@@ -32,24 +22,20 @@ bitflags! {
     }
 }
 
+#[derive(Debug)]
+pub struct PageMapErr;
+
+pub trait PageDirectory {
+    fn root_page_table_addr(&self) -> VirtualAddr;
+    fn translate(&self, physical_addr: PhysicalAddr) -> VirtualAddr;
+}
+
 pub fn init() {
     log::debug!("Setting up the paging system.");
 
-    HHDM_OFFSET.call_once(|| {
-        HHDM_REQUEST
-            .get_response()
-            .expect("No HHDM response.")
-            .offset()
-    });
-
-    let hhdm_offset = unsafe { *HHDM_OFFSET.get_unchecked() };
-
-    log::debug!("HHDM Offset at {}", VirtualAddr::new(hhdm_offset));
-
-    let memory_map_entries = MEMORY_MAP_REQUEST
-        .get_response()
-        .expect("No Memory Map response.")
-        .entries();
+    let memory_map_entries = boot::MEMORY_MAP_ENTRIES
+        .get()
+        .expect("Boot not initialized yet");
 
     let is_memory_region_usable = |entry_type: EntryType| match entry_type {
         EntryType::USABLE => true,
@@ -68,6 +54,10 @@ pub fn init() {
         _ => unreachable!(),
     };
 
+    let boot_page_directory = boot::BOOT_PAGE_DIRECTORY
+        .get()
+        .expect("Boot not initialized yet");
+
     for entry in memory_map_entries.iter() {
         let entry_type = entry_type_to_str(entry.entry_type);
         let base = PhysicalAddr::new(entry.base);
@@ -82,19 +72,13 @@ pub fn init() {
         );
 
         if is_memory_region_usable(entry.entry_type) {
-            let node = unsafe { FreeListNode::from_addr(base, pages, translate_hhdm) };
+            let node = unsafe { FreeListNode::from_addr(boot_page_directory, base, pages) };
             let mut allocator = PAGE_ALLOCATOR.lock();
             allocator.append_node(node)
         }
     }
-}
 
-pub fn translate_hhdm(physical_addr: PhysicalAddr) -> VirtualAddr {
-    let hhdm_offset = HHDM_OFFSET
-        .get()
-        .expect("Tried to get HHDM offset when `mem::init` is yet to be called.");
-
-    VirtualAddr::new(physical_addr.addr() + hhdm_offset)
+    log::info!("Initialized page allocator!");
 }
 
 pub fn allocate_pages(num_pages: usize) -> Result<PhysicalAddr, page_allocator::AllocError> {
@@ -102,7 +86,11 @@ pub fn allocate_pages(num_pages: usize) -> Result<PhysicalAddr, page_allocator::
     allocator.allocate(num_pages)
 }
 
-pub fn deallocate_pages(physical_addr: PhysicalAddr, num_pages: usize) {
+pub fn deallocate_pages<T: PageDirectory>(
+    page_directory: &T,
+    physical_addr: PhysicalAddr,
+    num_pages: usize,
+) {
     let mut allocator = PAGE_ALLOCATOR.lock();
-    allocator.deallocate(physical_addr, num_pages, translate_hhdm);
+    allocator.deallocate(page_directory, physical_addr, num_pages);
 }

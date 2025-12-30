@@ -48,6 +48,7 @@ impl_csr!(stval);
 impl_csr!(sepc);
 impl_csr!(sstatus);
 impl_csr!(stvec);
+impl_csr!(satp);
 
 impl scause {
     pub fn interrupt_code(&self) -> InterruptCode {
@@ -106,5 +107,14 @@ impl scause {
 
     const fn code(&self) -> u64 {
         return self.0 & !(1 << 63);
+    }
+}
+
+use super::mem::PPN;
+
+impl satp {
+    pub const fn ppn(&self) -> PPN {
+        let value = self.0 & 0x0000_0FFF_FFFF_FFFF;
+        PPN::new(value)
     }
 }
