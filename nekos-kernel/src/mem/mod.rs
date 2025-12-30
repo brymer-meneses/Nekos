@@ -26,7 +26,7 @@ bitflags! {
 pub struct PageMapErr;
 
 pub trait PageDirectory {
-    fn root_page_table_addr(&self) -> VirtualAddr;
+    fn root_page_table(&self) -> PhysicalAddr;
     fn translate(&self, physical_addr: PhysicalAddr) -> VirtualAddr;
 }
 

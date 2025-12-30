@@ -9,24 +9,16 @@ mod boot;
 mod mem;
 
 use arch::print;
-use limine::BaseRevision;
 
 use crate::mem::VirtualAddr;
 
-#[unsafe(link_section = ".requests")]
-static BASE_REVISION: BaseRevision = BaseRevision::new();
-
 #[unsafe(no_mangle)]
 extern "C" fn kmain() -> ! {
-    // All limine requests must also be referenced in a called function, otherwise they may be
-    // removed by the linker.
-    assert!(BASE_REVISION.is_supported());
-
     boot::init();
     arch::init();
     mem::init();
 
-    let virtual_addr = VirtualAddr::new(0x0000_0000_BEEF_0000);
+    let virtual_addr = VirtualAddr::new(0x001000);
     let physical_addr = mem::allocate_pages(1).expect("Failed to allocate memory");
     let boot_page_directory = boot::BOOT_PAGE_DIRECTORY
         .get()

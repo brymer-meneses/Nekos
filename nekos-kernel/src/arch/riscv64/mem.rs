@@ -14,11 +14,10 @@ pub fn map_page<T: PageDirectory>(
     debug_assert!(virtual_addr.is_aligned_with(PAGE_SIZE));
     debug_assert!(physical_addr.is_aligned_with(PAGE_SIZE));
 
-    let pte_flags = PageTableFlags::new(flags);
     let mode = *boot::PAGING_MODE.get().expect("Boot not initialized yet.");
     let virtual_page_numbers = VPN::parse(mode, virtual_addr);
-
-    let mut page_table = PageTable::from_addr(directory.root_page_table_addr());
+    let root_page_table = directory.translate(directory.root_page_table());
+    let mut page_table = PageTable::from_addr(root_page_table);
 
     if let Some(vpn4) = virtual_page_numbers.vpn4 {
         page_table = get_next_level(directory, page_table, vpn4, true)?;
@@ -33,6 +32,7 @@ pub fn map_page<T: PageDirectory>(
 
     let ppn = PPN::from_physical_addr(physical_addr);
 
+    let pte_flags = PageTableFlags::new(flags);
     page_table.entries[virtual_page_numbers.vpn0 as usize] = PageTableEntry::new(ppn, pte_flags);
 
     Ok(())

@@ -1,6 +1,7 @@
 use crate::mem::{PageDirectory, PhysicalAddr, VirtualAddr};
 use crate::{arch, log};
 
+use limine::BaseRevision;
 use limine::memory_map::Entry;
 use limine::paging::Mode;
 use limine::request::{HhdmRequest, MemoryMapRequest, PagingModeRequest};
@@ -16,12 +17,20 @@ static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
 #[unsafe(link_section = ".requests")]
 static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
 
+#[unsafe(link_section = ".requests")]
+static BASE_REVISION: BaseRevision = BaseRevision::new();
+
 pub static PAGING_MODE: Once<Mode> = Once::new();
 pub static HHDM_OFFSET: Once<u64> = Once::new();
 pub static MEMORY_MAP_ENTRIES: Once<&[&Entry]> = Once::new();
 pub static BOOT_PAGE_DIRECTORY: Once<LiminePageDirectory> = Once::new();
 
 pub fn init() {
+    assert!(
+        BASE_REVISION.is_supported(),
+        "Limine base revision is not supported"
+    );
+
     PAGING_MODE.call_once(|| {
         PAGING_MODE_REQUEST
             .get_response()
@@ -54,7 +63,6 @@ pub fn init() {
     });
 
     let paging_mode = unsafe { *PAGING_MODE.get_unchecked() };
-
     let paging_mode = match paging_mode {
         Mode::SV39 => "SV39",
         Mode::SV48 => "SV48",
@@ -75,7 +83,7 @@ impl PageDirectory for LiminePageDirectory {
         VirtualAddr::new(physical_addr.addr() + self.hhdm_offset)
     }
 
-    fn root_page_table_addr(&self) -> VirtualAddr {
-        self.translate(self.root_page_table)
+    fn root_page_table(&self) -> PhysicalAddr {
+        self.root_page_table
     }
 }
