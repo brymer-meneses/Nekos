@@ -24,16 +24,18 @@ pub fn map_page(
     let mut pa = physical_addr;
     let mut remaining = size as u64;
 
-    const TWO_MIB: u64 = PAGE_SIZE * 512;
-    const ONE_GIB: u64 = TWO_MIB * 512;
+    let one_gib = 1.gibibytes();
+    let two_mib = 2.mebibytes();
 
     while remaining != 0 {
-        let page_type = if remaining >= ONE_GIB
-            && va.is_aligned_with(ONE_GIB)
-            && pa.is_aligned_with(ONE_GIB)
+        let page_type = if remaining >= one_gib
+            && va.is_aligned_with(one_gib.into())
+            && pa.is_aligned_with(one_gib.into())
         {
             PageType::OneGiB
-        } else if remaining >= TWO_MIB && va.is_aligned_with(TWO_MIB) && pa.is_aligned_with(TWO_MIB)
+        } else if remaining >= two_mib
+            && va.is_aligned_with(two_mib.into())
+            && pa.is_aligned_with(two_mib.into())
         {
             PageType::TwoMiB
         } else {
@@ -42,7 +44,7 @@ pub fn map_page(
 
         map_page_impl(root_page_table_addr, va, pa, page_type, flags)?;
 
-        let step = page_type.in_bytes();
+        let step: u64 = page_type.in_bytes().into();
 
         va = VirtualAddr::new(va.addr() + step);
         pa = PhysicalAddr::new(pa.addr() + step);
@@ -60,11 +62,11 @@ enum PageType {
 }
 
 impl PageType {
-    const fn in_bytes(&self) -> u64 {
+    fn in_bytes(&self) -> ubyte::ByteUnit {
         match self {
-            PageType::FourKiB => 4096,
-            PageType::TwoMiB => 4096 * 512,
-            PageType::OneGiB => 4096 * 512 * 512,
+            PageType::FourKiB => 4.kibibytes(),
+            PageType::TwoMiB => 2.mebibytes(),
+            PageType::OneGiB => 1.gibibytes(),
         }
     }
 }
@@ -76,7 +78,7 @@ fn map_page_impl(
     page_type: PageType,
     flags: VirtualMemoryFlags,
 ) -> Result<(), PageMapErr> {
-    let alignment = page_type.in_bytes();
+    let alignment = page_type.in_bytes().into();
 
     debug_assert!(virtual_addr.is_aligned_with(alignment));
     debug_assert!(physical_addr.is_aligned_with(alignment));
@@ -133,6 +135,7 @@ fn map_page_impl(
 }
 
 use bitflags::bitflags;
+use ubyte::ToByteUnit;
 
 bitflags! {
     #[derive(Clone, Copy, Debug)]

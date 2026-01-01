@@ -74,11 +74,11 @@ pub fn init() {
         let entry_type = entry_type_to_str(entry.entry_type);
 
         log::debug!(
-            "`{}' Memory at {}-{} {}",
-            entry_type,
+            "{}-{} {} {}",
             PhysicalAddr::new(entry.base),
             PhysicalAddr::new(entry.base + entry.length),
-            entry.length.bytes()
+            entry_type,
+            entry.length.bytes(),
         );
     }
 }
