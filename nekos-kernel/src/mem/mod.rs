@@ -1,16 +1,19 @@
-use bitflags::bitflags;
-use limine::memory_map::EntryType;
-
 mod addr;
 mod page_allocator;
 mod range_allocator;
 
-use crate::{boot, log};
+use core::ptr;
+use spin::Once;
+use ubyte::ToByteUnit;
+
+use crate::arch::{self, PAGE_SIZE};
+use crate::mem::page_allocator::PAGE_ALLOCATOR;
+use crate::{boot, log, misc};
+
+use bitflags::bitflags;
+use limine::memory_map::EntryType;
 
 pub use addr::*;
-
-use crate::arch::PAGE_SIZE;
-use crate::mem::page_allocator::{FreeListNode, PAGE_ALLOCATOR};
 
 bitflags! {
     #[derive(Clone, Copy, Debug)]
@@ -23,74 +26,181 @@ bitflags! {
 }
 
 #[derive(Debug)]
-pub struct PageMapErr;
+pub enum PageMapErr {
+    UnalignedPhysicalAddr,
+    UnalignedVirtualAddr,
+    UnalignedSize,
+    PageFrameAllocError,
+}
 
 pub trait PageDirectory {
     fn root_page_table(&self) -> PhysicalAddr;
-    fn translate(&self, physical_addr: PhysicalAddr) -> VirtualAddr;
 }
 
 pub fn init() {
     log::debug!("Setting up the paging system.");
 
-    let memory_map_entries = boot::MEMORY_MAP_ENTRIES
-        .get()
-        .expect("Boot not initialized yet");
+    init_page_allocator();
+    init_kernel_page_directory();
+}
 
-    let is_memory_region_usable = |entry_type: EntryType| match entry_type {
-        EntryType::USABLE => true,
-        _ => false,
-    };
+fn init_page_allocator() {
+    let boot_info = boot::BOOT_INFO.get().unwrap();
 
-    let entry_type_to_str = |entry_type: EntryType| match entry_type {
-        EntryType::USABLE => "Usable",
-        EntryType::RESERVED => "Reserved",
-        EntryType::ACPI_RECLAIMABLE => "ACPI Reclaimable",
-        EntryType::ACPI_NVS => "ACPI NVS",
-        EntryType::BAD_MEMORY => "Bad Memory",
-        EntryType::BOOTLOADER_RECLAIMABLE => "Bootloader Reclaimable",
-        EntryType::EXECUTABLE_AND_MODULES => "Kernel and Modules",
-        EntryType::FRAMEBUFFER => "Framebuffer",
-        _ => unreachable!(),
-    };
-
-    let boot_page_directory = boot::BOOT_PAGE_DIRECTORY
-        .get()
-        .expect("Boot not initialized yet");
-
-    for entry in memory_map_entries.iter() {
-        let entry_type = entry_type_to_str(entry.entry_type);
+    let mut allocator = PAGE_ALLOCATOR.lock();
+    for entry in boot_info
+        .memory_map_entries
+        .iter()
+        .filter(|entry| entry.entry_type == EntryType::USABLE)
+    {
         let base = PhysicalAddr::new(entry.base);
         let pages = (entry.length / PAGE_SIZE) as usize;
 
         log::debug!(
-            "`{}' Memory at {} - {} with {} pages.",
-            entry_type,
-            PhysicalAddr::new(entry.base),
-            PhysicalAddr::new(entry.base + entry.length),
-            pages
+            "Adding page frame to page allocator {}",
+            entry.length.bytes()
         );
 
-        if is_memory_region_usable(entry.entry_type) {
-            let node = unsafe { FreeListNode::from_addr(boot_page_directory, base, pages) };
-            let mut allocator = PAGE_ALLOCATOR.lock();
-            allocator.append_node(node)
-        }
+        allocator.deallocate(base, pages);
     }
 
     log::info!("Initialized page allocator!");
 }
 
-pub fn allocate_pages(num_pages: usize) -> Result<PhysicalAddr, page_allocator::AllocError> {
-    let mut allocator = PAGE_ALLOCATOR.lock();
-    allocator.allocate(num_pages)
+static KERNEL_PAGE_DIRECTORY: Once<KernelPageDirectory> = Once::new();
+
+fn init_kernel_page_directory() {
+    let boot_info = boot::BOOT_INFO.get().unwrap();
+
+    let kernel_image_offset = {
+        let kernel_virtual_addr =
+            misc::align_down_page(ptr::addr_of!(boot::KERNEL_BLOB_BEGIN) as u64);
+        let kernel_physical_addr = boot_info.kernel_address;
+        assert!(kernel_virtual_addr >= kernel_physical_addr.addr());
+
+        kernel_virtual_addr - kernel_physical_addr.addr()
+    };
+
+    log::debug!(
+        "Kernel Image Offset {}",
+        VirtualAddr::new(kernel_image_offset)
+    );
+
+    let root_page_table = allocate_pages(1, true).expect("Failed to allocate page");
+
+    let map_section =
+        |section_begin: *const u8, section_end: *const u8, flags: VirtualMemoryFlags| {
+            let section_begin = misc::align_down_page(section_begin as u64);
+            let section_end = misc::align_up_page(section_end as u64);
+
+            let section_size = (section_end - section_begin) as usize;
+
+            let physical_addr = PhysicalAddr::new(section_begin - kernel_image_offset);
+            let virtual_addr = VirtualAddr::new(section_begin);
+
+            crate::arch::map_page(
+                root_page_table,
+                virtual_addr,
+                physical_addr,
+                section_size,
+                flags,
+            )
+            .expect("Failed to map page")
+        };
+
+    map_section(
+        ptr::addr_of!(boot::KERNEL_CODE_BEGIN),
+        ptr::addr_of!(boot::KERNEL_CODE_END),
+        VirtualMemoryFlags::Executable,
+    );
+
+    map_section(
+        ptr::addr_of!(boot::KERNEL_RODATA_BEGIN),
+        ptr::addr_of!(boot::KERNEL_RODATA_END),
+        VirtualMemoryFlags::empty(),
+    );
+
+    map_section(
+        ptr::addr_of!(boot::KERNEL_DATA_BEGIN),
+        ptr::addr_of!(boot::KERNEL_DATA_END),
+        VirtualMemoryFlags::Writeable,
+    );
+
+    let boot_info = boot::BOOT_INFO.get().unwrap();
+    let mut usable_memory = 0u64;
+
+    for entry in boot_info
+        .memory_map_entries
+        .iter()
+        .filter(|entry| entry.entry_type == EntryType::USABLE)
+    {
+        log::debug!(
+            "Mapping entry {} with size {}",
+            PhysicalAddr::new(entry.base),
+            entry.length.bytes()
+        );
+
+        let physical_addr = PhysicalAddr::new(entry.base);
+        let virtual_addr = physical_addr.as_virtual_by_offset(boot_info.hhdm_offset);
+
+        usable_memory += entry.length;
+
+        arch::map_page(
+            root_page_table,
+            virtual_addr,
+            physical_addr,
+            entry.length as usize,
+            VirtualMemoryFlags::Writeable,
+        )
+        .expect("Failed to map page");
+    }
+
+    use ubyte::ToByteUnit;
+
+    log::info!("Total Usable Memory {}", usable_memory.bytes());
+
+    KERNEL_PAGE_DIRECTORY.call_once(|| KernelPageDirectory { root_page_table });
 }
 
-pub fn deallocate_pages<T: PageDirectory>(
-    page_directory: &T,
-    physical_addr: PhysicalAddr,
+pub fn allocate_pages(
     num_pages: usize,
-) {
+    zeroed: bool,
+) -> Result<PhysicalAddr, page_allocator::AllocError> {
     let mut allocator = PAGE_ALLOCATOR.lock();
-    allocator.deallocate(page_directory, physical_addr, num_pages);
+    let page = allocator.allocate(num_pages)?;
+    let boot_info = boot::BOOT_INFO.get().unwrap();
+
+    if zeroed {
+        unsafe {
+            core::ptr::write_bytes(
+                page.as_virtual_by_offset(boot_info.hhdm_offset)
+                    .as_mut_ptr::<u8>(),
+                0,
+                PAGE_SIZE as usize * num_pages,
+            )
+        }
+    }
+
+    Ok(page)
+}
+
+pub fn deallocate_pages(physical_addr: PhysicalAddr, num_pages: usize) {
+    let mut allocator = PAGE_ALLOCATOR.lock();
+    allocator.deallocate(physical_addr, num_pages);
+}
+
+pub struct KernelPageDirectory {
+    root_page_table: PhysicalAddr,
+}
+
+impl KernelPageDirectory {
+    pub const fn new(root_page_table: PhysicalAddr) -> Self {
+        Self { root_page_table }
+    }
+}
+
+impl PageDirectory for KernelPageDirectory {
+    fn root_page_table(&self) -> PhysicalAddr {
+        self.root_page_table
+    }
 }

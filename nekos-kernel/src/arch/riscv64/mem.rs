@@ -1,70 +1,135 @@
-use crate::arch::{PAGE_SIZE, PageDirectory, PageMapErr};
+use crate::arch::{PAGE_SIZE, PageMapErr};
 use crate::mem::{PhysicalAddr, VirtualAddr, VirtualMemoryFlags};
 
-use crate::boot;
+use crate::{boot, log};
 use core::usize;
 use limine::paging::Mode;
 
-pub fn map_page<T: PageDirectory>(
-    directory: &T,
+pub fn map_page(
+    root_page_table_addr: PhysicalAddr,
     virtual_addr: VirtualAddr,
     physical_addr: PhysicalAddr,
+    size: usize,
     flags: VirtualMemoryFlags,
 ) -> Result<(), PageMapErr> {
-    debug_assert!(virtual_addr.is_aligned_with(PAGE_SIZE));
-    debug_assert!(physical_addr.is_aligned_with(PAGE_SIZE));
-
-    let mode = *boot::PAGING_MODE.get().expect("Boot not initialized yet.");
-    let virtual_page_numbers = VPN::parse(mode, virtual_addr);
-    let root_page_table = directory.translate(directory.root_page_table());
-    let mut page_table = PageTable::from_addr(root_page_table);
-
-    if let Some(vpn4) = virtual_page_numbers.vpn4 {
-        page_table = get_next_level(directory, page_table, vpn4, true)?;
+    if !virtual_addr.is_aligned_with(PAGE_SIZE) {
+        return Err(PageMapErr::UnalignedVirtualAddr);
     }
 
-    if let Some(vpn3) = virtual_page_numbers.vpn3 {
-        page_table = get_next_level(directory, page_table, vpn3, true)?;
+    if !physical_addr.is_aligned_with(PAGE_SIZE) {
+        return Err(PageMapErr::UnalignedSize);
     }
 
-    page_table = get_next_level(directory, page_table, virtual_page_numbers.vpn2, true)?;
-    page_table = get_next_level(directory, page_table, virtual_page_numbers.vpn1, true)?;
+    let mut va = virtual_addr;
+    let mut pa = physical_addr;
+    let mut remaining = size as u64;
 
-    let ppn = PPN::from_physical_addr(physical_addr);
+    const TWO_MIB: u64 = PAGE_SIZE * 512;
+    const ONE_GIB: u64 = TWO_MIB * 512;
 
-    let pte_flags = PageTableFlags::new(flags);
-    page_table.entries[virtual_page_numbers.vpn0 as usize] = PageTableEntry::new(ppn, pte_flags);
+    while remaining != 0 {
+        let page_type = if remaining >= ONE_GIB
+            && va.is_aligned_with(ONE_GIB)
+            && pa.is_aligned_with(ONE_GIB)
+        {
+            PageType::OneGiB
+        } else if remaining >= TWO_MIB && va.is_aligned_with(TWO_MIB) && pa.is_aligned_with(TWO_MIB)
+        {
+            PageType::TwoMiB
+        } else {
+            PageType::FourKiB
+        };
+
+        map_page_impl(root_page_table_addr, va, pa, page_type, flags)?;
+
+        let step = page_type.in_bytes();
+
+        va = VirtualAddr::new(va.addr() + step);
+        pa = PhysicalAddr::new(pa.addr() + step);
+        remaining -= step;
+    }
 
     Ok(())
 }
 
-fn get_next_level<'a, T: PageDirectory>(
-    directory: &T,
-    page_table: &'a mut PageTable,
-    vpn: u16,
-    allocate: bool,
-) -> Result<&'a mut PageTable, PageMapErr> {
-    let pte = &mut page_table.entries[vpn as usize];
-    let flags = pte.flags();
+#[derive(Debug, Clone, Copy)]
+enum PageType {
+    OneGiB,
+    TwoMiB,
+    FourKiB,
+}
 
-    if !flags.contains(PageTableFlags::VALID) && !allocate {
-        return Err(PageMapErr);
+impl PageType {
+    const fn in_bytes(&self) -> u64 {
+        match self {
+            PageType::FourKiB => 4096,
+            PageType::TwoMiB => 4096 * 512,
+            PageType::OneGiB => 4096 * 512 * 512,
+        }
+    }
+}
+
+fn map_page_impl(
+    root_page_table_addr: PhysicalAddr,
+    virtual_addr: VirtualAddr,
+    physical_addr: PhysicalAddr,
+    page_type: PageType,
+    flags: VirtualMemoryFlags,
+) -> Result<(), PageMapErr> {
+    let alignment = page_type.in_bytes();
+
+    debug_assert!(virtual_addr.is_aligned_with(alignment));
+    debug_assert!(physical_addr.is_aligned_with(alignment));
+
+    let mut indices = [0u16; 5];
+    for (i, shift) in [12u16, 21, 30, 39, 48].iter().enumerate() {
+        let addr = virtual_addr.addr();
+        indices[i] = ((addr >> shift) & 0x1FF) as u16;
     }
 
-    if !flags.contains(PageTableFlags::VALID) {
-        let new_page = crate::mem::allocate_pages(1).map_err(|_| PageMapErr)?;
-        let virtual_addr = directory.translate(new_page);
+    let boot_info = boot::BOOT_INFO.get().unwrap();
 
-        unsafe { core::ptr::write_bytes(virtual_addr.as_mut_ptr(), 0, PAGE_SIZE as usize) };
+    let top_level = match boot_info.paging_mode {
+        Mode::SV57 => 4,
+        Mode::SV48 => 3,
+        Mode::SV39 => 2,
+        _ => unreachable!(),
+    };
 
-        let ppn = PPN::from_physical_addr(new_page);
+    let leaf_level = match page_type {
+        PageType::FourKiB => 0,
+        PageType::TwoMiB => 1,
+        PageType::OneGiB => 2,
+    };
 
-        *pte = PageTableEntry::new(ppn, PageTableFlags::VALID)
+    let root_page_table = root_page_table_addr.as_virtual_by_offset(boot_info.hhdm_offset);
+    let mut page_table = PageTable::from_addr(root_page_table);
+
+    for level in (leaf_level + 1..=top_level).rev() {
+        let vpn = indices[level] as usize;
+        let pte = &mut page_table.entries[vpn];
+
+        if !pte.flags().contains(PageTableFlags::VALID) {
+            let new_page = crate::mem::allocate_pages(1, /*zeroed=*/ true)
+                .map_err(|_| PageMapErr::PageFrameAllocError)?;
+            let ppn = PPN::from_physical_addr(new_page);
+            *pte = PageTableEntry::new(ppn, PageTableFlags::VALID);
+        }
+
+        let next_table_vaddr = pte
+            .ppn()
+            .as_physical_addr()
+            .as_virtual_by_offset(boot_info.hhdm_offset);
+        page_table = PageTable::from_addr(next_table_vaddr);
     }
 
-    Ok(PageTable::from_addr(
-        directory.translate(pte.ppn().as_physical_addr()),
-    ))
+    let vpn = indices[leaf_level] as usize;
+    let flags = PageTableFlags::new(flags);
+    let ppn = PPN::from_physical_addr(physical_addr);
+
+    page_table.entries[vpn] = PageTableEntry::new(ppn, flags);
+
+    Ok(())
 }
 
 use bitflags::bitflags;
@@ -110,7 +175,7 @@ struct PageTable {
 
 impl<'a> PageTable {
     pub fn from_addr(virtual_addr: VirtualAddr) -> &'a mut Self {
-        let ptr = virtual_addr.as_ptr() as *mut PageTable;
+        let ptr = virtual_addr.as_mut_ptr::<PageTable>();
         debug_assert!(ptr.is_aligned(), "{}", virtual_addr);
 
         unsafe { ptr.as_mut().expect("Null ptr") }
@@ -140,46 +205,6 @@ impl PageTableEntry {
 
     pub fn has_flag(&self, flag: PageTableFlags) -> bool {
         self.flags().contains(flag)
-    }
-}
-
-struct VPN {
-    vpn0: u16,
-    vpn1: u16,
-    vpn2: u16,
-    vpn3: Option<u16>,
-    vpn4: Option<u16>,
-}
-
-impl VPN {
-    const MASK: u64 = 0x1FF;
-
-    const fn parse(mode: Mode, virtual_addr: VirtualAddr) -> Self {
-        let mut indices = Self {
-            vpn0: Self::extract(virtual_addr, 12),
-            vpn1: Self::extract(virtual_addr, 21),
-            vpn2: Self::extract(virtual_addr, 30),
-            vpn3: None,
-            vpn4: None,
-        };
-
-        match mode {
-            Mode::SV39 => {}
-            Mode::SV48 => indices.vpn3 = Some(Self::extract(virtual_addr, 39)),
-            Mode::SV57 => {
-                indices.vpn3 = Some(Self::extract(virtual_addr, 39));
-                indices.vpn4 = Some(Self::extract(virtual_addr, 48));
-            }
-            _ => unreachable!(),
-        }
-
-        indices
-    }
-
-    #[inline]
-    const fn extract(virtual_addr: VirtualAddr, shift: u64) -> u16 {
-        let addr = virtual_addr.addr();
-        ((addr >> shift) & Self::MASK) as u16
     }
 }
 

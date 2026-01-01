@@ -1,6 +1,5 @@
-#![allow(dead_code)]
-
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
+#[repr(transparent)]
 pub struct VirtualAddr(u64);
 
 impl VirtualAddr {
@@ -10,13 +9,13 @@ impl VirtualAddr {
     }
 
     #[inline]
-    pub const fn as_mut_ptr(&self) -> *mut u8 {
-        self.0 as *mut u8
+    pub const fn as_mut_ptr<T>(&self) -> *mut T {
+        self.0 as *mut T
     }
 
     #[inline]
-    pub const fn as_ptr(&self) -> *const u8 {
-        self.0 as *const u8
+    pub const fn as_ptr<T>(&self) -> *const T {
+        self.0 as *const T
     }
 
     #[inline]
@@ -30,6 +29,7 @@ impl VirtualAddr {
 }
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
+#[repr(transparent)]
 pub struct PhysicalAddr(u64);
 
 impl PhysicalAddr {
@@ -41,6 +41,11 @@ impl PhysicalAddr {
     #[inline]
     pub const fn addr(&self) -> u64 {
         self.0
+    }
+
+    #[inline]
+    pub const fn as_virtual_by_offset(&self, offset: u64) -> VirtualAddr {
+        VirtualAddr::new(self.0 + offset)
     }
 
     pub const fn is_aligned_with(&self, alignment: u64) -> bool {

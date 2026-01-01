@@ -1,12 +1,15 @@
 #![allow(unused)]
 
 use crate::arch::PAGE_SIZE;
+use crate::boot;
 use crate::mem::{PageDirectory, PhysicalAddr, VirtualAddr};
 
 use core::marker::PhantomPinned;
+
+use core::num::NonZero;
 use core::{num, ptr::NonNull};
 
-use spin::Mutex;
+use spin::{Mutex, Once};
 
 pub static PAGE_ALLOCATOR: Mutex<FreeListAllocator> = Mutex::new(FreeListAllocator::new());
 
@@ -19,7 +22,7 @@ pub struct FreeListAllocator {
     _pin: PhantomPinned,
 }
 
-pub struct FreeListNode {
+struct FreeListNode {
     next: Option<NonNull<FreeListNode>>,
     prev: Option<NonNull<FreeListNode>>,
 
@@ -71,12 +74,7 @@ impl FreeListAllocator {
         Err(AllocError)
     }
 
-    pub fn deallocate<T: PageDirectory>(
-        &mut self,
-        directory: &T,
-        phys_addr: PhysicalAddr,
-        num_pages: usize,
-    ) {
+    pub fn deallocate(&mut self, phys_addr: PhysicalAddr, num_pages: usize) {
         let mut current = NonNull::from_mut(&mut self.root);
 
         while let Some(next) = unsafe { current.as_ref().next } {
@@ -86,22 +84,10 @@ impl FreeListAllocator {
             current = next;
         }
 
-        let new_node = unsafe { FreeListNode::from_addr(directory, phys_addr, num_pages) };
+        let new_node = unsafe { FreeListNode::from_addr(phys_addr, num_pages) };
+
         FreeListNode::append(current, new_node);
         self.coalesce(new_node);
-    }
-
-    pub fn append_node(&mut self, node: NonNull<FreeListNode>) {
-        match self.tail() {
-            Some(tail) => unsafe {
-                assert!(tail.as_ref().base < node.as_ref().base);
-                FreeListNode::append(tail, node);
-                self.coalesce(node);
-            },
-            None => {
-                FreeListNode::append(NonNull::from_mut(&mut self.root), node);
-            }
-        }
     }
 
     fn coalesce(&mut self, mut node: NonNull<FreeListNode>) {
@@ -136,12 +122,9 @@ impl FreeListAllocator {
 }
 
 impl FreeListNode {
-    pub unsafe fn from_addr<T: PageDirectory>(
-        directory: &T,
-        phys_addr: PhysicalAddr,
-        num_pages: usize,
-    ) -> NonNull<FreeListNode> {
-        let virt_addr = directory.translate(phys_addr);
+    pub unsafe fn from_addr(phys_addr: PhysicalAddr, num_pages: usize) -> NonNull<FreeListNode> {
+        let boot_info = boot::BOOT_INFO.get().unwrap();
+        let virt_addr = phys_addr.as_virtual_by_offset(boot_info.hhdm_offset);
         let ptr = virt_addr.as_mut_ptr() as *mut FreeListNode;
         debug_assert!(ptr.is_aligned());
 

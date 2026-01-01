@@ -1,7 +1,7 @@
 #[cfg(target_arch = "riscv64")]
 pub mod riscv64;
 
-use crate::mem::{PageDirectory, PageMapErr, PhysicalAddr, VirtualAddr, VirtualMemoryFlags};
+use crate::mem::{PageMapErr, PhysicalAddr, VirtualAddr, VirtualMemoryFlags};
 use core::arch::asm;
 
 #[inline]
@@ -21,15 +21,16 @@ pub fn init() {
 }
 
 #[inline]
-pub fn map_page<T: PageDirectory>(
-    directory: &T,
+pub fn map_page(
+    root_page_table: PhysicalAddr,
     virtual_addr: VirtualAddr,
     physical_addr: PhysicalAddr,
+    size: usize,
     flags: VirtualMemoryFlags,
 ) -> Result<(), PageMapErr> {
     #[cfg(target_arch = "riscv64")]
     {
-        return riscv64::map_page(directory, virtual_addr, physical_addr, flags);
+        return riscv64::map_page(root_page_table, virtual_addr, physical_addr, size, flags);
     }
     #[cfg(not(target_arch = "riscv64"))]
     {
@@ -48,6 +49,28 @@ pub fn root_page_table() -> PhysicalAddr {
     #[cfg(not(target_arch = "riscv64"))]
     {
         compile_error!("Unsupported architecture - only riscv64 is supported");
+    }
+}
+
+#[inline]
+pub fn switch_page_table(page_table_addr: PhysicalAddr) {
+    #[cfg(target_arch = "riscv64")]
+    {
+        use crate::arch::riscv64;
+        use crate::arch::riscv64::csr::satp;
+
+        use riscv64::csr::{CsrRead, CsrWrite};
+        use riscv64::mem::PPN;
+
+        let mut satp_reg = riscv64::csr::satp::read();
+        let ppn = PPN::from_physical_addr(page_table_addr);
+        satp_reg.set_ppn(ppn);
+
+        unsafe {
+            satp::write(satp_reg);
+        }
+
+        flush_tlb();
     }
 }
 

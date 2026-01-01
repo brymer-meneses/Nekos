@@ -1,15 +1,12 @@
-#![allow(unused)]
+use arrayvec::ArrayVec;
 
+use crate::arch::PAGE_SIZE;
 use crate::misc;
-use core::mem::MaybeUninit;
-use core::ops::Index;
+
 use core::ptr::NonNull;
 
 use super::VirtualMemoryFlags;
 use super::addr::VirtualAddr;
-
-use crate::arch::PAGE_SIZE;
-use bitflags::bitflags;
 
 /// A `Range` corresponds to an region in the virtual memory address space.
 #[derive(Clone, Copy)]
@@ -22,8 +19,7 @@ pub struct Range {
 
 /// A `RangeObject` contains an array of `Ranges`. This struct is allocated on a page.
 pub struct RangeObject {
-    objects: [MaybeUninit<Range>; NUM_RANGE],
-    size: usize,
+    objects: arrayvec::ArrayVec<Range, NUM_RANGE>,
     next: Option<NonNull<RangeObject>>,
 }
 
@@ -40,22 +36,16 @@ pub struct RangeAllocator {
     base: VirtualAddr,
 }
 
+pub enum AllocError {
+    FailedToAllocatePage,
+    FailedToMapPage,
+}
+
 impl RangeAllocator {
     pub fn new(base: VirtualAddr) -> Self {
         Self {
             objects: None,
             base,
-        }
-    }
-
-    pub fn allocate_range(&mut self, size: usize, flags: VirtualMemoryFlags) -> VirtualAddr {
-        todo!()
-    }
-
-    fn allocate_range_object(&mut self, address: VirtualAddr) -> NonNull<RangeObject> {
-        match self.tail() {
-            None => todo!(),
-            Some(object) => todo!(),
         }
     }
 
@@ -70,51 +60,16 @@ impl RangeAllocator {
 
 impl RangeObject {
     pub unsafe fn from_addr(addr: VirtualAddr) -> NonNull<RangeObject> {
-        let addr = addr.as_ptr() as *mut RangeObject;
+        let addr = addr.as_mut_ptr::<RangeObject>();
+        debug_assert!(addr.is_aligned());
 
         unsafe {
             addr.write(RangeObject {
-                size: 0,
                 next: None,
-                objects: MaybeUninit::uninit().assume_init(),
+                objects: ArrayVec::new(),
             });
 
             NonNull::new_unchecked(addr)
         }
-    }
-
-    pub fn iter(&self) -> RangeObjectIter<'_> {
-        RangeObjectIter {
-            current: 0,
-            size: self.size,
-            object: self,
-        }
-    }
-}
-
-pub struct RangeObjectIter<'a> {
-    current: usize,
-    size: usize,
-    object: &'a RangeObject,
-}
-
-impl<'a> Iterator for RangeObjectIter<'a> {
-    type Item = Range;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.current >= self.size {
-            return None;
-        }
-
-        Some(self.object[self.size])
-    }
-}
-
-impl Index<usize> for RangeObject {
-    type Output = Range;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        debug_assert!(index < self.size);
-        unsafe { self.objects[index].assume_init_ref() }
     }
 }

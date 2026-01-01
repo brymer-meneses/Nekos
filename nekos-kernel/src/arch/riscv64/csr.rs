@@ -117,4 +117,9 @@ impl satp {
         let value = self.0 & 0x0000_0FFF_FFFF_FFFF;
         PPN::new(value)
     }
+
+    pub const fn set_ppn(&mut self, ppn: PPN) {
+        let mask = !0x0000_0FFF_FFFF_FFFFu64;
+        self.0 = (self.0 & mask) | ppn.value();
+    }
 }

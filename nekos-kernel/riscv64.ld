@@ -22,20 +22,27 @@ SECTIONS
     /* that is the beginning of the region. */
     . = 0xffffffff80000000;
 
+    __kernel_blob_begin = .;
+
+    __kernel_code_begin = .;
     .text : {
         *(.text .text.*)
     } :text
+    __kernel_code_end = .;
 
     /* Move to the next memory page for .rodata */
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
+    __kernel_rodata_begin = .;
     .rodata : {
         *(.rodata .rodata.*)
     } :rodata
+    __kernel_rodata_end = .;
 
     /* Move to the next memory page for .data */
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
+    __kernel_data_begin = .;
     .data : {
         *(.data .data.*)
 
@@ -63,4 +70,8 @@ SECTIONS
         *(.eh_frame*)
         *(.note .note.*)
     }
+
+    __kernel_data_end = .;
+
+    __kernel_blob_end = .;
 }

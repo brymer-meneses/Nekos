@@ -1,8 +1,8 @@
-mod mem;
 mod sbi;
 mod trap;
 
 pub mod csr;
+pub mod mem;
 pub use sbi::print;
 
 use crate::log;
