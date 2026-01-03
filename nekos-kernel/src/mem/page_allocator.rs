@@ -125,7 +125,8 @@ impl FreeListNode {
     pub unsafe fn from_addr(phys_addr: PhysicalAddr, num_pages: usize) -> NonNull<FreeListNode> {
         let boot_info = boot::BOOT_INFO.get().unwrap();
         let virt_addr = phys_addr.as_virtual_by_offset(boot_info.hhdm_offset);
-        let ptr = virt_addr.as_mut_ptr() as *mut FreeListNode;
+        let ptr = virt_addr.as_mut_ptr::<FreeListNode>();
+
         debug_assert!(ptr.is_aligned());
 
         let node = FreeListNode {

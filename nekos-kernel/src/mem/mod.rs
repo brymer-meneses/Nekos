@@ -1,4 +1,5 @@
 mod addr;
+mod heap;
 mod page_allocator;
 mod range_allocator;
 

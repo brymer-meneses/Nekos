@@ -1,4 +1,4 @@
-#[derive(Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 #[repr(transparent)]
 pub struct VirtualAddr(u64);
 
@@ -28,7 +28,7 @@ impl VirtualAddr {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 #[repr(transparent)]
 pub struct PhysicalAddr(u64);
 
