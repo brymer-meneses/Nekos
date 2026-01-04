@@ -1,4 +1,3 @@
-use crate::arch::PAGE_SIZE;
 use crate::log;
 use crate::mem::{PhysicalAddr, VirtualAddr};
 

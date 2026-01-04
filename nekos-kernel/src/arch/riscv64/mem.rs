@@ -1,7 +1,7 @@
 use crate::arch::{PAGE_SIZE, PageMapErr};
 use crate::mem::{PhysicalAddr, VirtualAddr, VirtualMemoryFlags};
 
-use crate::{boot, log};
+use crate::boot;
 use core::usize;
 use limine::paging::Mode;
 

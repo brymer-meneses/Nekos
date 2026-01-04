@@ -23,8 +23,14 @@ impl VirtualAddr {
         self.0
     }
 
+    #[inline]
     pub const fn is_aligned_with(&self, alignment: u64) -> bool {
-        self.addr() & (alignment - 1) == 0
+        self.0 & (alignment - 1) == 0
+    }
+
+    #[inline]
+    pub const fn offset_by(&self, offset: u64) -> Self {
+        VirtualAddr(self.0 + offset)
     }
 }
 
