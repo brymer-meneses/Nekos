@@ -136,15 +136,23 @@ impl RangeAllocator {
         };
 
         match self.objects {
-            None => allocate_range_object(),
-
-            Some(range_object) => unsafe {
-                if range_object.as_ref().ranges.remaining_capacity() == 0 {
-                    return allocate_range_object();
-                }
+            None => {
+                let range_object = allocate_range_object()?;
+                self.objects = Some(range_object);
 
                 Ok(range_object)
-            },
+            }
+
+            Some(mut range_object) => {
+                let range_object_ref = unsafe { range_object.as_mut() };
+                if !range_object_ref.ranges.is_full() {
+                    return Ok(range_object);
+                }
+
+                let new_range_object = allocate_range_object()?;
+                range_object_ref.next = Some(new_range_object);
+                return Ok(new_range_object);
+            }
         }
     }
 }
