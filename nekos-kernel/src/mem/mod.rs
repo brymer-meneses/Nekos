@@ -9,6 +9,7 @@ use ubyte::ToByteUnit;
 
 use crate::arch::{self, PAGE_SIZE};
 use crate::mem::page_allocator::PAGE_ALLOCATOR;
+use crate::mem::range_allocator::RangeAllocator;
 use crate::{boot, log, misc};
 
 use bitflags::bitflags;
@@ -89,39 +90,51 @@ fn init_kernel_page_directory() {
 
     let root_page_table = allocate_pages(1, true).expect("Failed to allocate page");
 
-    let map_section =
-        |section_begin: *const u8, section_end: *const u8, flags: VirtualMemoryFlags| {
-            let section_begin = misc::align_down_page(section_begin as u64);
-            let section_end = misc::align_up_page(section_end as u64);
+    let map_section = |name: &str,
+                       section_begin: *const u8,
+                       section_end: *const u8,
+                       flags: VirtualMemoryFlags| {
+        let section_begin = misc::align_down_page(section_begin as u64);
+        let section_end = misc::align_up_page(section_end as u64);
 
-            let section_size = (section_end - section_begin) as usize;
+        log::debug!(
+            "Mapping {} region {}-{}",
+            name,
+            PhysicalAddr::new(section_begin),
+            PhysicalAddr::new(section_end),
+        );
 
-            let physical_addr = PhysicalAddr::new(section_begin - kernel_image_offset);
-            let virtual_addr = VirtualAddr::new(section_begin);
+        let section_size = (section_end - section_begin) as usize;
 
-            crate::arch::map_page(
-                root_page_table,
-                virtual_addr,
-                physical_addr,
-                section_size,
-                flags,
-            )
-            .expect("Failed to map page")
-        };
+        let physical_addr = PhysicalAddr::new(section_begin - kernel_image_offset);
+        let virtual_addr = VirtualAddr::new(section_begin);
+
+        crate::arch::map_page(
+            root_page_table,
+            virtual_addr,
+            physical_addr,
+            section_size,
+            flags,
+        )
+        .expect("Failed to map page")
+    };
 
     map_section(
+        "Kernel Code",
         ptr::addr_of!(boot::KERNEL_CODE_BEGIN),
         ptr::addr_of!(boot::KERNEL_CODE_END),
         VirtualMemoryFlags::Executable,
     );
 
     map_section(
+        "Kernel Read Only Data",
         ptr::addr_of!(boot::KERNEL_RODATA_BEGIN),
         ptr::addr_of!(boot::KERNEL_RODATA_END),
         VirtualMemoryFlags::empty(),
     );
 
     map_section(
+        "Kernel Data",
         ptr::addr_of!(boot::KERNEL_DATA_BEGIN),
         ptr::addr_of!(boot::KERNEL_DATA_END),
         VirtualMemoryFlags::Writeable,
@@ -136,7 +149,7 @@ fn init_kernel_page_directory() {
         .filter(|entry| entry.entry_type == EntryType::USABLE)
     {
         log::debug!(
-            "Mapping entry {} with size {}",
+            "Mapping usable memory region {} with size {}",
             PhysicalAddr::new(entry.base),
             entry.length.bytes()
         );
@@ -160,7 +173,10 @@ fn init_kernel_page_directory() {
 
     log::info!("Total Usable Memory {}", usable_memory.bytes());
 
-    KERNEL_PAGE_DIRECTORY.call_once(|| KernelPageDirectory { root_page_table });
+    let base = VirtualAddr::new(ptr::addr_of!(boot::KERNEL_BLOB_END) as u64);
+    let range_allocator = RangeAllocator::new(base, root_page_table);
+
+    KERNEL_PAGE_DIRECTORY.call_once(|| KernelPageDirectory::new(root_page_table, range_allocator));
 }
 
 pub fn allocate_pages(
@@ -192,11 +208,15 @@ pub fn deallocate_pages(physical_addr: PhysicalAddr, num_pages: usize) {
 
 pub struct KernelPageDirectory {
     root_page_table: PhysicalAddr,
+    range_allocator: RangeAllocator,
 }
 
 impl KernelPageDirectory {
-    pub const fn new(root_page_table: PhysicalAddr) -> Self {
-        Self { root_page_table }
+    pub const fn new(root_page_table: PhysicalAddr, range_allocator: RangeAllocator) -> Self {
+        Self {
+            root_page_table,
+            range_allocator,
+        }
     }
 }
 

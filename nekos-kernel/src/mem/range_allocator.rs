@@ -12,10 +12,10 @@ use super::addr::VirtualAddr;
 /// A `Range` corresponds to an region in the virtual memory address space.
 #[derive(Clone, Copy)]
 pub struct Range {
-    base: VirtualAddr,
-    length: usize,
-    flags: VirtualMemoryFlags,
-    is_used: bool,
+    pub base: VirtualAddr,
+    pub length: usize,
+    pub flags: VirtualMemoryFlags,
+    pub is_used: bool,
 }
 
 /// A `RangeObject` contains an array of `Ranges`. This struct is allocated on a page.
@@ -31,6 +31,9 @@ const NUM_RANGE: usize =
         / size_of::<Range>();
 
 misc::const_assert!(size_of::<RangeObject>() <= PAGE_SIZE as usize);
+
+unsafe impl Sync for RangeAllocator {}
+unsafe impl Send for RangeAllocator {}
 
 pub struct RangeAllocator {
     objects: Option<NonNull<RangeObject>>,
@@ -175,6 +178,6 @@ impl RangeObject {
 
 impl Range {
     pub fn is_within(&self, addr: VirtualAddr) -> bool {
-        self.base <= addr && addr < VirtualAddr::new(self.base.addr() + self.length as u64)
+        self.base <= addr && addr < self.base.offset_by(self.length as u64)
     }
 }
