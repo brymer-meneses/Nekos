@@ -226,16 +226,15 @@ unsafe impl GlobalAlloc for OnceLock<SlabAllocator> {
         if layout.size() >= PAGE_SIZE as usize {
             let mut range_allocator = KERNEL_RANGE_ALLOCATOR.lock();
             let range = range_allocator.allocate(layout.size(), VirtualMemoryFlags::Writeable);
-            if let Ok(range) = range {
-                return range.base.as_mut_ptr::<u8>();
-            }
-            return core::ptr::null_mut();
+            return range
+                .and_then(|range| Ok(range.base.as_mut_ptr::<u8>()))
+                .unwrap_or(core::ptr::null_mut());
         }
 
         let mut allocator = self.lock();
         allocator
             .allocate(layout.size())
-            .unwrap_or_else(|_| core::ptr::null_mut::<u8>())
+            .unwrap_or(core::ptr::null_mut::<u8>())
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
