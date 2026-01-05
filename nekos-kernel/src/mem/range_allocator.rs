@@ -37,7 +37,7 @@ unsafe impl Send for RangeAllocator {}
 pub struct RangeAllocator {
     objects: Option<NonNull<RangeObject>>,
     base: VirtualAddr,
-    root_page_table: PhysicalAddr,
+    pub root_page_table: PhysicalAddr,
 }
 
 #[derive(Debug)]

@@ -82,7 +82,12 @@ pub struct TrapFrame {
     pub sp: u64,
 }
 
-use crate::log;
+use crate::{
+    arch::riscv64::mem,
+    log,
+    mem::{KERNEL_RANGE_ALLOCATOR, VirtualMemoryFlags},
+    misc,
+};
 use core::arch;
 
 use super::csr::{self, CsrRead, CsrWrite};
@@ -117,8 +122,35 @@ fn handle_interrupt(_frame: &mut TrapFrame) {
 
 fn handle_exception(_frame: &mut TrapFrame) {
     let scause = csr::scause::read();
+    let code = scause.exception_code();
 
-    panic!("Unhandled exception: `{:?}`.", scause.exception_code());
+    match code {
+        ExceptionCode::StoreAmoPageFault => {
+            let faulting_addr = {
+                let stval = csr::stval::read();
+                let addr = misc::align_down_page(stval.value());
+                VirtualAddr::new(addr)
+            };
+
+            let range_allocator = KERNEL_RANGE_ALLOCATOR.lock();
+            if range_allocator.find(faulting_addr).is_some() {
+                let page =
+                    crate::mem::allocate_pages(1, /*zerod*/ true).expect("Failed to allocate page");
+                crate::arch::map_page(
+                    range_allocator.root_page_table,
+                    faulting_addr,
+                    page,
+                    4096,
+                    VirtualMemoryFlags::Writeable,
+                )
+                .expect("Failed to map page")
+            } else {
+                panic!("Invalid memory access {faulting_addr}");
+            }
+        }
+
+        _ => panic!("Unhandled exception: `{:?}`.", code),
+    }
 }
 
 #[unsafe(naked)]
