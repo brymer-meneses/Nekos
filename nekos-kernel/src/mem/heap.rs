@@ -2,6 +2,7 @@ use core::mem::MaybeUninit;
 
 use crate::{
     arch::PAGE_SIZE,
+    log,
     mem::{VirtualAddr, VirtualMemoryFlags, range_allocator::RangeAllocator},
     misc,
 };
@@ -13,6 +14,9 @@ pub struct Slab {
     alloc_size: usize,
     size: usize,
 }
+
+unsafe impl Sync for Slab {}
+unsafe impl Send for Slab {}
 
 impl Slab {
     fn new(base: VirtualAddr, alloc_size: usize, size: usize) -> Slab {
@@ -56,20 +60,20 @@ impl Slab {
     }
 }
 
-pub struct SlabAllocator<'a> {
+pub struct SlabAllocator {
     /// 8 -> 2048
     slabs: [Slab; 8],
-    range_allocator: &'a mut RangeAllocator,
 }
 
 #[derive(Debug)]
 pub enum AllocError {
     RangeAllocErr,
     FullCapacity,
+    OutOfRange,
 }
 
-impl<'a> SlabAllocator<'a> {
-    pub fn new(range_allocator: &'a mut RangeAllocator) -> Result<Self, AllocError> {
+impl SlabAllocator {
+    pub fn new(range_allocator: &mut RangeAllocator) -> Result<Self, AllocError> {
         let mut slabs = [const { MaybeUninit::uninit() }; 8];
 
         for i in 0..8usize {
@@ -77,35 +81,24 @@ impl<'a> SlabAllocator<'a> {
             let size = 3 * PAGE_SIZE;
             let range = range_allocator
                 .allocate(size as usize, VirtualMemoryFlags::Writeable)
-                .map_err(|_| AllocError::RangeAllocErr)?;
+                .expect("failed to alloc range");
 
             slabs[i].write(Slab::new(range.base, alloc_size, size as usize));
         }
 
         Ok(SlabAllocator {
             slabs: unsafe { core::mem::transmute::<_, [Slab; 8]>(slabs) },
-            range_allocator,
         })
     }
 
     pub fn allocate(&mut self, size: usize) -> Result<*mut u8, AllocError> {
-        if size >= crate::arch::PAGE_SIZE as usize {
-            let size = misc::align_up(size as u64, crate::arch::PAGE_SIZE);
-            let range = self
-                .range_allocator
-                .allocate(size as usize, VirtualMemoryFlags::Writeable)
-                .map_err(|_| AllocError::RangeAllocErr)?;
-
-            return Ok(range.base.as_mut_ptr());
-        }
-
         for slab in self.slabs.iter_mut() {
             if slab.alloc_size >= size {
                 return slab.alloc();
             }
         }
 
-        unreachable!()
+        Err(AllocError::OutOfRange)
     }
 
     pub fn deallocate(&mut self, address: VirtualAddr) {
@@ -115,7 +108,5 @@ impl<'a> SlabAllocator<'a> {
                 return;
             }
         }
-
-        todo!("Deallocating large objects")
     }
 }

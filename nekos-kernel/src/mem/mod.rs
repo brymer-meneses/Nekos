@@ -3,14 +3,18 @@ mod heap;
 mod page_allocator;
 mod range_allocator;
 
+use core::alloc::{GlobalAlloc, Layout};
 use core::ptr;
-use spin::Once;
+
+use spin::{Mutex, Once};
 use ubyte::ToByteUnit;
 
-use crate::arch::{self, PAGE_SIZE};
+use crate::arch::PAGE_SIZE;
+use crate::mem::heap::SlabAllocator;
 use crate::mem::page_allocator::PAGE_ALLOCATOR;
 use crate::mem::range_allocator::RangeAllocator;
-use crate::{boot, log, misc};
+use crate::misc::OnceLock;
+use crate::{arch, boot, log, misc};
 
 use bitflags::bitflags;
 use limine::memory_map::EntryType;
@@ -69,7 +73,10 @@ fn init_page_allocator() {
     log::info!("Initialized page allocator!");
 }
 
-static KERNEL_PAGE_DIRECTORY: Once<KernelPageDirectory> = Once::new();
+pub static KERNEL_RANGE_ALLOCATOR: OnceLock<RangeAllocator> = OnceLock::new();
+
+#[global_allocator]
+pub static KERNEL_HEAP_ALLOCATOR: OnceLock<SlabAllocator> = OnceLock::new();
 
 fn init_kernel_page_directory() {
     let boot_info = boot::BOOT_INFO.get().unwrap();
@@ -143,21 +150,21 @@ fn init_kernel_page_directory() {
     let boot_info = boot::BOOT_INFO.get().unwrap();
     let mut usable_memory = 0u64;
 
-    for entry in boot_info
-        .memory_map_entries
-        .iter()
-        .filter(|entry| entry.entry_type == EntryType::USABLE)
-    {
-        log::debug!(
-            "Mapping usable memory region {} with size {}",
-            PhysicalAddr::new(entry.base),
-            entry.length.bytes()
-        );
-
+    for entry in boot_info.memory_map_entries.iter().filter(|entry| {
+        let entry_type = entry.entry_type;
+        entry_type == EntryType::USABLE || entry_type == EntryType::BOOTLOADER_RECLAIMABLE
+    }) {
         let physical_addr = PhysicalAddr::new(entry.base);
         let virtual_addr = physical_addr.as_virtual_by_offset(boot_info.hhdm_offset);
 
-        usable_memory += entry.length;
+        if entry.entry_type == EntryType::USABLE {
+            log::debug!(
+                "Mapping usable memory region {} with size {}",
+                physical_addr,
+                entry.length.bytes()
+            );
+            usable_memory += entry.length;
+        }
 
         arch::map_page(
             root_page_table,
@@ -173,10 +180,17 @@ fn init_kernel_page_directory() {
 
     log::info!("Total Usable Memory {}", usable_memory.bytes());
 
-    let base = VirtualAddr::new(ptr::addr_of!(boot::KERNEL_BLOB_END) as u64);
-    let range_allocator = RangeAllocator::new(base, root_page_table);
+    arch::switch_page_table(root_page_table);
 
-    KERNEL_PAGE_DIRECTORY.call_once(|| KernelPageDirectory::new(root_page_table, range_allocator));
+    let base_addr = misc::align_up_page(ptr::addr_of!(boot::KERNEL_BLOB_END) as u64);
+    let base = VirtualAddr::new(base_addr);
+
+    let mut range_allocator = RangeAllocator::new(base, root_page_table);
+    let slab_allocator =
+        SlabAllocator::new(&mut range_allocator).expect("Failed to allocate range");
+
+    KERNEL_HEAP_ALLOCATOR.set(slab_allocator);
+    KERNEL_RANGE_ALLOCATOR.set(range_allocator);
 }
 
 pub fn allocate_pages(
@@ -206,22 +220,30 @@ pub fn deallocate_pages(physical_addr: PhysicalAddr, num_pages: usize) {
     allocator.deallocate(physical_addr, num_pages);
 }
 
-pub struct KernelPageDirectory {
-    root_page_table: PhysicalAddr,
-    range_allocator: RangeAllocator,
-}
-
-impl KernelPageDirectory {
-    pub const fn new(root_page_table: PhysicalAddr, range_allocator: RangeAllocator) -> Self {
-        Self {
-            root_page_table,
-            range_allocator,
+unsafe impl GlobalAlloc for OnceLock<SlabAllocator> {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        if layout.size() >= PAGE_SIZE as usize {
+            let mut range_allocator = KERNEL_RANGE_ALLOCATOR.lock();
+            let range = range_allocator.allocate(layout.size(), VirtualMemoryFlags::Writeable);
+            if let Ok(range) = range {
+                return range.base.as_mut_ptr::<u8>();
+            }
+            return core::ptr::null_mut();
         }
-    }
-}
 
-impl PageDirectory for KernelPageDirectory {
-    fn root_page_table(&self) -> PhysicalAddr {
-        self.root_page_table
+        let mut allocator = self.lock();
+        allocator
+            .allocate(layout.size())
+            .unwrap_or_else(|_| core::ptr::null_mut::<u8>())
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        if layout.size() >= PAGE_SIZE as usize {
+            todo!("Deallocate from range allocator");
+        }
+
+        let mut allocator = self.lock();
+        let address = VirtualAddr::new(ptr::addr_of!(ptr) as u64);
+        allocator.deallocate(address);
     }
 }

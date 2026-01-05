@@ -10,11 +10,21 @@ mod mem;
 
 use arch::print;
 
+extern crate alloc;
+
+use alloc::*;
+
 #[unsafe(no_mangle)]
 extern "C" fn kmain() -> ! {
     boot::init();
     arch::init();
     mem::init();
+
+    log::info!("Hello world!");
+
+    let vec = vec![1, 2, 3, 4];
+
+    log::info!("{:?}", vec);
 
     arch::halt();
 }

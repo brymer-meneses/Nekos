@@ -32,7 +32,6 @@ const NUM_RANGE: usize =
 
 misc::const_assert!(size_of::<RangeObject>() <= PAGE_SIZE as usize);
 
-unsafe impl Sync for RangeAllocator {}
 unsafe impl Send for RangeAllocator {}
 
 pub struct RangeAllocator {
@@ -41,6 +40,7 @@ pub struct RangeAllocator {
     root_page_table: PhysicalAddr,
 }
 
+#[derive(Debug)]
 pub enum AllocError {
     FailedToAllocatePage,
     FailedToMapPage,
