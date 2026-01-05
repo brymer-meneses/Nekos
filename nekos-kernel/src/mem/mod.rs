@@ -3,10 +3,11 @@ mod heap;
 mod page_allocator;
 mod range_allocator;
 
+pub mod trap;
+
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr;
 
-use spin::{Mutex, Once};
 use ubyte::ToByteUnit;
 
 use crate::arch::PAGE_SIZE;

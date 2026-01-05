@@ -83,9 +83,9 @@ pub struct TrapFrame {
 }
 
 use crate::{
-    arch::riscv64::mem,
+    arch::PAGE_SIZE,
     log,
-    mem::{KERNEL_RANGE_ALLOCATOR, VirtualMemoryFlags},
+    mem::{KERNEL_RANGE_ALLOCATOR, VirtualMemoryFlags, trap::handle_page_fault},
     misc,
 };
 use core::arch;
@@ -131,22 +131,7 @@ fn handle_exception(_frame: &mut TrapFrame) {
                 let addr = misc::align_down_page(stval.value());
                 VirtualAddr::new(addr)
             };
-
-            let range_allocator = KERNEL_RANGE_ALLOCATOR.lock();
-            if range_allocator.find(faulting_addr).is_some() {
-                let page =
-                    crate::mem::allocate_pages(1, /*zerod*/ true).expect("Failed to allocate page");
-                crate::arch::map_page(
-                    range_allocator.root_page_table,
-                    faulting_addr,
-                    page,
-                    4096,
-                    VirtualMemoryFlags::Writeable,
-                )
-                .expect("Failed to map page")
-            } else {
-                panic!("Invalid memory access {faulting_addr}");
-            }
+            handle_page_fault(faulting_addr);
         }
 
         _ => panic!("Unhandled exception: `{:?}`.", code),
